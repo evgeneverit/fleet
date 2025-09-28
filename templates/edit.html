@@ -6,6 +6,7 @@
     <title>Редактировать обработку</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/styles.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -19,7 +20,7 @@
     </nav>
     <div class="container mt-4">
         <h1>Редактировать обработку</h1>
-        <form method="post" class="row g-3">
+        <form method="post" class="row g-3" id="editForm">
             <div class="col-md-6">
                 <label for="ship_id" class="form-label">Судно</label>
                 <select name="ship_id" id="ship_id" class="form-select" required>
@@ -46,23 +47,51 @@
             </div>
             <div class="col-md-6">
                 <label for="date" class="form-label">Дата</label>
-                <input type="date" name="date" id="date" value="{{ operation.date }}" class="form-control" required>
+                <input type="date" name="date" id="date" class="form-control" value="{{ operation.date }}" required>
             </div>
-            {% for pollutant in pollutants %}
-            <div class="col-md-6">
-                <label for="volume_{{ pollutant.id }}" class="form-label">{{ pollutant.name }} (куб.м)</label>
-                <input type="number" step="0.01" name="volume_{{ pollutant.id }}" id="volume_{{ pollutant.id }}"
-                       value="{{ operation_pollutants[pollutant.id].volume if pollutant.id in operation_pollutants else 0 }}" class="form-control">
+            <div class="col-12">
+                <div class="form-check">
+                    <input type="checkbox" name="has_documents" id="has_documents" class="form-check-input" {% if operation.has_documents %}checked{% endif %}>
+                    <label for="has_documents" class="form-check-label">Закрывающие документы</label>
+                </div>
             </div>
-            <div class="col-md-6">
-                <label for="cost_{{ pollutant.id }}" class="form-label">Стоимость {{ pollutant.name }}</label>
-                <input type="number" step="0.01" name="cost_{{ pollutant.id }}" id="cost_{{ pollutant.id }}"
-                       value="{{ operation_pollutants[pollutant.id].cost if pollutant.id in operation_pollutants else 0 }}" class="form-control">
+            <div class="col-12">
+                <h5>Загрязнители</h5>
+                <div class="dropdown">
+                    <button class="btn btn-success" type="button" id="addPollutantButton" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-plus-circle"></i> Добавить загрязнитель
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="addPollutantButton">
+                        {% for pollutant in pollutants %}
+                        <li><a class="dropdown-item" href="#" data-pollutant-id="{{ pollutant.id }}" data-pollutant-name="{{ pollutant.name | safe }}">
+                            <i class="bi {% if pollutant.name == 'Питьевая вода' %}bi-droplet{% elif pollutant.name == 'Хозфекальные воды' %}bi-water{% elif pollutant.name == 'Шлам' %}bi-trash{% else %}bi-box{% endif %}"></i>
+                            {{ pollutant.name }}
+                        </a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
             </div>
-            {% endfor %}
-            <div class="col-md-6">
-                <label for="has_documents" class="form-label">Закрывающие документы</label>
-                <input type="checkbox" name="has_documents" id="has_documents" {% if operation.has_documents %}checked{% endif %} class="form-check-input">
+            <div class="col-12">
+                <table class="table table-sm" id="pollutantsTable" {% if not operation_pollutants %}style="display: none;"{% endif %}>
+                    <thead>
+                        <tr>
+                            <th>Загрязнитель</th>
+                            <th>Объём (куб.м)</th>
+                            <th>Стоимость</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pollutantsList">
+                        {% for pollutant_id, op in operation_pollutants.items() %}
+                        <tr data-pollutant-id="{{ pollutant_id }}">
+                            <td>{{ op.pollutant.name }}</td>
+                            <td><input type="number" step="0.01" name="volume_{{ pollutant_id }}" class="form-control" value="{{ op.volume }}" required></td>
+                            <td><input type="number" step="0.01" name="cost_{{ pollutant_id }}" class="form-control" value="{{ op.cost }}" required></td>
+                            <td><button type="button" class="btn btn-sm btn-danger" data-pollutant-id="{{ pollutant_id }}">Удалить</button></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
@@ -71,5 +100,60 @@
         </form>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedPollutants = [{% for pollutant_id in operation_pollutants.keys() %}{{ pollutant_id }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+        document.querySelectorAll('.dropdown-item[data-pollutant-id]').forEach(item => {
+            item.addEventListener('click', (event) => {
+                event.preventDefault();
+                const id = parseInt(item.getAttribute('data-pollutant-id'));
+                const name = item.getAttribute('data-pollutant-name');
+                addPollutant(id, name);
+            });
+        });
+
+        document.querySelectorAll('button[data-pollutant-id]').forEach(button => {
+            button.addEventListener('click', () => {
+                const id = parseInt(button.getAttribute('data-pollutant-id'));
+                removePollutant(id);
+            });
+        });
+
+        function addPollutant(id, name) {
+            if (!selectedPollutants.includes(id)) {
+                selectedPollutants.push(id);
+                const tableBody = document.getElementById('pollutantsList');
+                const table = document.getElementById('pollutantsTable');
+                table.style.display = 'table';
+                
+                const row = document.createElement('tr');
+                row.setAttribute('data-pollutant-id', id);
+                row.innerHTML = `
+                    <td>${name}</td>
+                    <td><input type="number" step="0.01" name="volume_${id}" class="form-control" value="0" required></td>
+                    <td><input type="number" step="0.01" name="cost_${id}" class="form-control" value="0" required></td>
+                    <td><button type="button" class="btn btn-sm btn-danger" data-pollutant-id="${id}">Удалить</button></td>
+                `;
+                tableBody.appendChild(row);
+
+                // Добавляем обработчик для новой кнопки "Удалить"
+                row.querySelector('button[data-pollutant-id]').addEventListener('click', () => {
+                    removePollutant(id);
+                });
+            }
+        }
+
+        function removePollutant(id) {
+            selectedPollutants = selectedPollutants.filter(p => p !== id);
+            const tableBody = document.getElementById('pollutantsList');
+            const row = tableBody.querySelector(`tr[data-pollutant-id="${id}"]`);
+            if (row) {
+                tableBody.removeChild(row);
+            }
+            if (selectedPollutants.length === 0) {
+                document.getElementById('pollutantsTable').style.display = 'none';
+            }
+        }
+    </script>
 </body>
 </html>

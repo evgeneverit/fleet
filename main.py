@@ -168,13 +168,17 @@ async def create_operation(
         volume_key = f"volume_{pollutant.id}"
         cost_key = f"cost_{pollutant.id}"
         if volume_key in form_data and cost_key in form_data:
-            volume = float(form_data.get(volume_key, 0.0))
-            cost = float(form_data.get(cost_key, 0.0))
-            if volume > 0 or cost > 0:
-                operation_pollutant = OperationPollutant(
-                    operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
-                )
-                db.add(operation_pollutant)
+            try:
+                volume = float(form_data.get(volume_key, 0.0))
+                cost = float(form_data.get(cost_key, 0.0))
+                if volume > 0 or cost > 0:
+                    operation_pollutant = OperationPollutant(
+                        operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
+                    )
+                    db.add(operation_pollutant)
+            except ValueError as e:
+                print(f"Ошибка преобразования для pollutant {pollutant.id}: {e}")
+                continue
     
     db.commit()
     return RedirectResponse(url="/", status_code=303)
@@ -188,7 +192,7 @@ async def edit_form(operation_id: int, request: Request, db: Session = Depends(g
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
     pollutants = db.query(Pollutant).all()
-    operation_pollutants = {op.pollutant_id: op for op in operation.pollutants}
+    operation_pollutants = {op.pollutant_id: op for op in operation.pollutants} if operation.pollutants else {}
     return templates.TemplateResponse("edit.html", {
         "request": request, "operation": operation, "ships": ships, "ports": ports,
         "contractors": contractors, "pollutants": pollutants, "operation_pollutants": operation_pollutants
@@ -223,13 +227,17 @@ async def update_operation(
         volume_key = f"volume_{pollutant.id}"
         cost_key = f"cost_{pollutant.id}"
         if volume_key in form_data and cost_key in form_data:
-            volume = float(form_data.get(volume_key, 0.0))
-            cost = float(form_data.get(cost_key, 0.0))
-            if volume > 0 or cost > 0:
-                operation_pollutant = OperationPollutant(
-                    operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
-                )
-                db.add(operation_pollutant)
+            try:
+                volume = float(form_data.get(volume_key, 0.0))
+                cost = float(form_data.get(cost_key, 0.0))
+                if volume > 0 or cost > 0:
+                    operation_pollutant = OperationPollutant(
+                        operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
+                    )
+                    db.add(operation_pollutant)
+            except ValueError as e:
+                print(f"Ошибка преобразования для pollutant {pollutant.id}: {e}")
+                continue
     
     db.commit()
     return RedirectResponse(url="/", status_code=303)
