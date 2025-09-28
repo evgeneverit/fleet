@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, Column, Integer, String, Date, Float, Boolean, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
-from datetime import date
+from datetime import date, datetime
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -114,16 +114,73 @@ def startup_event():
 
 # Маршруты
 @app.get("/", response_class=HTMLResponse)
-async def list_operations(request: Request, db: Session = Depends(get_db)):
-    operations = db.query(Operation).all()
+async def list_operations(
+    request: Request,
+    ship_ids: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    port_id: int = None,
+    sort_order: str = "desc",  # По умолчанию DESC
+    db: Session = Depends(get_db)
+):
+    query = db.query(Operation)
+    
+    # Фильтр по судам
+    if ship_ids:
+        try:
+            ship_ids_list = [int(id) for id in ship_ids.split(",") if id]
+            query = query.filter(Operation.ship_id.in_(ship_ids_list))
+        except ValueError:
+            pass
+    
+    # Фильтр по датам
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+            query = query.filter(Operation.date >= start_date_obj)
+        except ValueError:
+            pass
+    
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+            query = query.filter(Operation.date <= end_date_obj)
+        except ValueError:
+            pass
+    
+    # Фильтр по порту
+    if port_id:
+        query = query.filter(Operation.port_id == port_id)
+    
+    # Сортировка по дате
+    if sort_order.lower() == "asc":
+        query = query.order_by(Operation.date.asc())
+    else:
+        query = query.order_by(Operation.date.desc())
+    
+    operations = query.all()
+    
+    # Итоговая стоимость
     total_costs = {}
     for op in operations:
         total_cost = db.query(func.sum(OperationPollutant.cost)).filter(OperationPollutant.operation_id == op.id).scalar() or 0.0
         total_costs[op.id] = total_cost
+    
+    # Данные для фильтров
+    ships = db.query(Ship).order_by(Ship.name).all()
+    ports = db.query(Port).order_by(Port.name).all()
+    
     return templates.TemplateResponse("list.html", {
         "request": request,
         "operations": operations,
-        "total_costs": total_costs
+        "total_costs": total_costs,
+        "ships": ships,
+        "ports": ports,
+        "selected_ship_ids": ship_ids.split(",") if ship_ids else [],
+        "selected_start_date": start_date,
+        "selected_end_date": end_date,
+        "selected_port_id": port_id,
+        "sort_order": sort_order
     })
 
 @app.get("/operation/{operation_id}", response_class=JSONResponse)
