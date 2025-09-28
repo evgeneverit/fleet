@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, Column, Integer, String, Date, Float, Boolean, ForeignKey, func
@@ -90,17 +90,17 @@ def init_data(db: Session):
             db.add(Ship(name=name))
     
     if db.query(Port).count() == 0:
-        ports = ["Порт1", "Порт2", "Порт3"]  # Замените на реальные порты
+        ports = ["Порт1", "Порт2", "Порт3"]
         for name in ports:
             db.add(Port(name=name))
     
     if db.query(Contractor).count() == 0:
-        contractors = ["Контрагент1", "Контрагент2", "Контрагент3"]  # Замените на реальных
+        contractors = ["Контрагент1", "Контрагент2", "Контрагент3"]
         for name in contractors:
             db.add(Contractor(name=name))
     
     if db.query(Pollutant).count() == 0:
-        pollutants = ["Питьевая вода", "Хозфекальные воды", "Шлам", "Бытовой мусор"]  # Добавьте больше при необходимости
+        pollutants = ["Питьевая вода", "Хозфекальные воды", "Шлам", "Бытовой мусор"]
         for name in pollutants:
             db.add(Pollutant(name=name))
     
@@ -113,11 +113,31 @@ def startup_event():
     db.close()
 
 # Маршруты
-
 @app.get("/", response_class=HTMLResponse)
 async def list_operations(request: Request, db: Session = Depends(get_db)):
     operations = db.query(Operation).all()
     return templates.TemplateResponse("list.html", {"request": request, "operations": operations})
+
+@app.get("/operation/{operation_id}", response_class=JSONResponse)
+async def get_operation(operation_id: int, db: Session = Depends(get_db)):
+    operation = db.query(Operation).filter(Operation.id == operation_id).first()
+    if not operation:
+        raise HTTPException(status_code=404, detail="Операция не найдена")
+    
+    pollutants = [
+        {"name": op.pollutant.name, "volume": op.volume, "cost": op.cost}
+        for op in operation.pollutants
+    ]
+    
+    return {
+        "id": operation.id,
+        "ship": operation.ship.name,
+        "port": operation.port.name,
+        "contractor": operation.contractor.name,
+        "date": str(operation.date),
+        "has_documents": operation.has_documents,
+        "pollutants": pollutants
+    }
 
 @app.get("/create", response_class=HTMLResponse)
 async def create_form(request: Request, db: Session = Depends(get_db)):
@@ -140,7 +160,7 @@ async def create_operation(
         ship_id=ship_id, port_id=port_id, contractor_id=contractor_id, date=date
     )
     db.add(operation)
-    db.flush()  # Получаем operation.id
+    db.flush()
 
     form_data = await request.form()
     pollutants = db.query(Pollutant).all()
@@ -223,9 +243,8 @@ async def delete_operation(operation_id: int, db: Session = Depends(get_db)):
 
 @app.get("/analytics", response_class=HTMLResponse)
 async def analytics(request: Request, db: Session = Depends(get_db)):
-    current_date = date(2025, 9, 28)  # Текущая дата
+    current_date = date(2025, 9, 28)
 
-    # Суммарная аналитика по судам
     summary_query = (
         db.query(
             Ship.name.label("ship_name"),
@@ -245,7 +264,6 @@ async def analytics(request: Request, db: Session = Depends(get_db)):
     )
     summary_results = summary_query.all()
 
-    # Аналитика по загрязнителям для каждого судна
     pollutants_query = (
         db.query(
             Ship.name.label("ship_name"),
@@ -263,7 +281,6 @@ async def analytics(request: Request, db: Session = Depends(get_db)):
     )
     pollutants_results = pollutants_query.all()
 
-    # Генерация графика: Общий объём по судам
     ship_names = [row.ship_name for row in summary_results]
     total_volumes = [row.total_volume or 0 for row in summary_results]
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -278,7 +295,6 @@ async def analytics(request: Request, db: Session = Depends(get_db)):
     volume_chart_base64 = base64.b64encode(buffer.read()).decode('utf-8')
     plt.close(fig)
 
-    # Генерация пай-чартов для распределения стоимости по загрязнителям для каждого судна
     pie_charts = {}
     ships = db.query(Ship).order_by(Ship.name).all()
     for ship in ships:
