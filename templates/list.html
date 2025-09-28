@@ -3,43 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Список обработок</title>
+    <title>Обработки флота</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/styles.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        /* Стили для модального окна справа от таблицы */
+        .modal-side {
+            position: fixed;
+            top: 0;
+            right: -350px; /* Изначально скрыто */
+            height: 100%;
+            width: 350px;
+            margin: 0;
+            transition: right 0.3s ease-in-out;
+            z-index: 1050; /* Выше таблицы, но ниже navbar */
+        }
+        .modal-side.show {
+            /* Позиция будет установлена через JavaScript */
+        }
+        .modal-side .modal-content {
+            height: 100%;
+            border-radius: 0;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.3);
+        }
+        .modal-side .modal-body {
+            overflow-y: auto;
+        }
+        /* Убираем стандартный фон модального окна */
+        .modal-side + .modal-backdrop {
+            background-color: transparent;
+        }
+        /* Стили для иконок в кнопках */
+        .btn-sm i {
+            font-size: 1rem;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="/">Управление обработками флота</a>
             <div class="navbar-nav">
-                <a class="nav-link" href="/create">Создать новую запись</a>
+                <a class="nav-link" href="/create">Создать обработку</a>
                 <a class="nav-link" href="/analytics">Аналитика</a>
             </div>
         </div>
     </nav>
     <div class="container mt-4">
         <h1>Список обработок</h1>
-        <table class="table table-striped table-hover">
+        <table class="table table-striped" id="operationsTable">
             <thead>
                 <tr>
                     <th>Судно</th>
-                    <th>Дата</th>
+                    <th>Порт</th>
                     <th>Контрагент</th>
-                    <th>Закрывающие документы</th>
+                    <th>Дата</th>
+                    <th>Документы</th>
+                    <th>Итоговая стоимость</th>
                     <th>Действия</th>
                 </tr>
             </thead>
             <tbody>
-                {% for op in operations %}
-                <tr style="cursor: pointer;" onclick="fetchOperationDetails({{ op.id }})">
-                    <td>{{ op.ship.name }}</td>
-                    <td>{{ op.date }}</td>
-                    <td>{{ op.contractor.name }}</td>
-                    <td>{% if op.has_documents %}<span class="badge bg-success">Да</span>{% else %}<span class="badge bg-danger">Нет</span>{% endif %}</td>
+                {% for operation in operations %}
+                <tr style="cursor: pointer;" onclick="showDetails({{ operation.id | safe }})">
+                    <td>{{ operation.ship.name }}</td>
+                    <td>{{ operation.port.name }}</td>
+                    <td>{{ operation.contractor.name }}</td>
+                    <td>{{ operation.date }}</td>
                     <td>
-                        <a href="/edit/{{ op.id }}" class="btn btn-sm btn-warning">Редактировать</a>
-                        <form action="/delete/{{ op.id }}" method="post" style="display:inline;">
-                            <input type="submit" value="Удалить" class="btn btn-sm btn-danger" onclick="event.stopPropagation(); return confirm('Вы уверены, что хотите удалить эту запись?');">
+                        {% if operation.has_documents %}
+                        <i class="bi bi-check-circle text-success"></i>
+                        {% else %}
+                        <i class="bi bi-x-circle text-danger"></i>
+                        {% endif %}
+                    </td>
+                    <td>{{ total_costs[operation.id] | float | round(2) }}</td>
+                    <td>
+                        <a href="/edit/{{ operation.id }}" class="btn btn-sm btn-primary" onclick="event.stopPropagation();"><i class="bi bi-pencil"></i></a>
+                        <form action="/delete/{{ operation.id }}" method="post" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="event.stopPropagation(); return confirm('Вы уверены, что хотите удалить эту обработку?')"><i class="bi bi-trash"></i></button>
                         </form>
                     </td>
                 </tr>
@@ -48,74 +91,79 @@
         </table>
     </div>
 
-    <!-- Боковая панель для деталей операции -->
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="operationDetails" aria-labelledby="operationDetailsLabel">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title" id="operationDetailsLabel">Детали операции</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Закрыть"></button>
-        </div>
-        <div class="offcanvas-body">
-            <div id="detailsContent">
-                <p>Выберите операцию для просмотра деталей.</p>
+    <!-- Модальное окно вне контейнера -->
+    <div class="modal fade modal-side" id="operationModal" tabindex="-1" aria-labelledby="operationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="operationModalLabel">Подробности обработки</h5>
+                </div>
+                <div class="modal-body">
+                    <p id="operationDetails"></p>
+                </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        async function fetchOperationDetails(operationId) {
-            try {
-                const response = await fetch(`/operation/${operationId}`);
-                if (!response.ok) {
-                    throw new Error('Операция не найдена');
-                }
-                const data = await response.json();
-                
-                // Формируем HTML для деталей
-                let html = `
-                    <p><strong>Судно:</strong> ${data.ship}</p>
-                    <p><strong>Порт:</strong> ${data.port}</p>
-                    <p><strong>Контрагент:</strong> ${data.contractor}</p>
-                    <p><strong>Дата:</strong> ${data.date}</p>
-                    <p><strong>Закрывающие документы:</strong> ${data.has_documents ? '<span class="badge bg-success">Да</span>' : '<span class="badge bg-danger">Нет</span>'}</p>
-                    <h6>Загрязнители:</h6>
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Тип</th>
-                                <th>Объём (куб.м)</th>
-                                <th>Стоимость</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-                data.pollutants.forEach(p => {
-                    html += `
-                        <tr>
-                            <td>${p.name}</td>
-                            <td>${p.volume}</td>
-                            <td>${p.cost}</td>
-                        </tr>
-                    `;
-                });
-                html += `
-                        </tbody>
-                    </table>
-                `;
-                
-                document.getElementById('detailsContent').innerHTML = html;
-                
-                // Открываем боковую панель
-                const offcanvasElement = document.getElementById('operationDetails');
-                const offcanvas = new bootstrap.Offcanvas(offcanvasElement);
-                offcanvas.show();
-            } catch (error) {
-                document.getElementById('detailsContent').innerHTML = `<p class="text-danger">Ошибка: ${error.message}</p>`;
-                const offcanvasElement = document.getElementById('operationDetails');
-                const offcanvas = new bootstrap.Offcanvas(offcanvasElement);
-                offcanvas.show();
+        let currentModal = null;
+
+        function showDetails(operationId) {
+            operationId = parseInt(operationId);
+            const table = document.getElementById('operationsTable');
+            const tableRect = table.getBoundingClientRect();
+            const modal = document.getElementById('operationModal');
+            const modalWidth = 350; // Ширина модального окна из CSS
+            const windowWidth = window.innerWidth;
+            const tableRightEdge = tableRect.right;
+
+            // Позиционируем модальное окно справа от таблицы
+            const spaceForModal = windowWidth - tableRightEdge;
+            if (spaceForModal < modalWidth) {
+                modal.style.right = '0px'; // Примыкаем к правому краю экрана, если места мало
+            } else {
+                modal.style.right = (windowWidth - tableRightEdge - modalWidth) + 'px'; // Справа от таблицы
             }
+
+            fetch(`/operation/${operationId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка HTTP: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const detailsText = document.getElementById('operationDetails');
+                    const modalTitle = document.getElementById('operationModalLabel');
+                    modalTitle.textContent = `Обработка ${data.id}`;
+                    let details = `
+                        <strong>Судно:</strong> ${data.ship}<br>
+                        <strong>Порт:</strong> ${data.port}<br>
+                        <strong>Контрагент:</strong> ${data.contractor}<br>
+                        <strong>Дата:</strong> ${data.date}<br>
+                        <strong>Документы:</strong> ${data.has_documents ? 'Есть' : 'Нет'}<br>
+                        <strong>Итоговая стоимость:</strong> ${data.total_cost.toFixed(2)}<br>
+                        <strong>Загрязнители:</strong><br>
+                    `;
+                    data.pollutants.forEach(p => {
+                        details += `${p.name}: Объём ${p.volume} куб.м, Стоимость ${p.cost}<br>`;
+                    });
+                    detailsText.innerHTML = details;
+                    const modalInstance = new bootstrap.Modal(modal, { backdrop: true });
+                    modalInstance.show();
+                    currentModal = modalInstance; // Сохраняем для закрытия
+                })
+                .catch(error => console.error('Ошибка:', error));
         }
+
+        // Закрытие модального окна по клику вне области
+        document.addEventListener('click', function(event) {
+            if (currentModal && !event.target.closest('.modal-content') && !event.target.closest('#operationsTable tr')) {
+                currentModal.hide();
+                currentModal = null;
+            }
+        });
     </script>
 </body>
 </html>

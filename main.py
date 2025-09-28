@@ -116,19 +116,26 @@ def startup_event():
 @app.get("/", response_class=HTMLResponse)
 async def list_operations(request: Request, db: Session = Depends(get_db)):
     operations = db.query(Operation).all()
-    return templates.TemplateResponse("list.html", {"request": request, "operations": operations})
+    total_costs = {}
+    for op in operations:
+        total_cost = db.query(func.sum(OperationPollutant.cost)).filter(OperationPollutant.operation_id == op.id).scalar() or 0.0
+        total_costs[op.id] = total_cost
+    return templates.TemplateResponse("list.html", {
+        "request": request,
+        "operations": operations,
+        "total_costs": total_costs
+    })
 
 @app.get("/operation/{operation_id}", response_class=JSONResponse)
 async def get_operation(operation_id: int, db: Session = Depends(get_db)):
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
-    
     pollutants = [
         {"name": op.pollutant.name, "volume": op.volume, "cost": op.cost}
         for op in operation.pollutants
     ]
-    
+    total_cost = db.query(func.sum(OperationPollutant.cost)).filter(OperationPollutant.operation_id == operation.id).scalar() or 0.0
     return {
         "id": operation.id,
         "ship": operation.ship.name,
@@ -136,7 +143,8 @@ async def get_operation(operation_id: int, db: Session = Depends(get_db)):
         "contractor": operation.contractor.name,
         "date": str(operation.date),
         "has_documents": operation.has_documents,
-        "pollutants": pollutants
+        "pollutants": pollutants,
+        "total_cost": total_cost
     }
 
 @app.get("/create", response_class=HTMLResponse)

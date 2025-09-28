@@ -1,18 +1,34 @@
+/* Базовые стили для улучшения внешнего вида */
 body {
-    background-color: #f8f9fa;
+    font-family: Arial, sans-serif;
 }
-.navbar-brand {
-    font-weight: bold;
+
+/* Улучшение таблицы */
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
+
 .table th, .table td {
     vertical-align: middle;
 }
-.btn {
-    margin-right: 5px;
+
+.table th {
+    background-color: #f8f9fa;
 }
-.form-label {
-    font-weight: 500;
+
+.table tbody tr:hover {
+    background-color: #e9ecef;
 }
+
+/* Стили для кнопок */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Убедимся, что кастомные стили не конфликтуют с модальным окном */
 .container {
-    max-width: 1200px;
+    max-width: 1200px; /* Ограничиваем ширину контейнера */
 }
