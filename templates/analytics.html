@@ -18,7 +18,80 @@
         </div>
     </nav>
     <div class="container mt-4">
-        <h1>Аналитика по обработкам</h1>
+        <h1>Расширенная аналитика по судам (на 28.09.2025)</h1>
+        
+        <!-- Суммарная таблица по судам -->
+        <h2>Суммарная аналитика по судам</h2>
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Судно</th>
+                    <th>Кол-во операций</th>
+                    <th>Общий объём (куб.м)</th>
+                    <th>Общая стоимость</th>
+                    <th>Типы загрязнителей</th>
+                    <th>Первая операция</th>
+                    <th>Последняя операция</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in summary_results %}
+                <tr>
+                    <td>{{ row.ship_name }}</td>
+                    <td>{{ row.operation_count }}</td>
+                    <td>{{ row.total_volume or 0 }}</td>
+                    <td>{{ row.total_cost or 0 }}</td>
+                    <td>{{ row.pollutant_types or 'Нет' }}</td>
+                    <td>{{ row.first_operation or 'Нет' }}</td>
+                    <td>{{ row.last_operation or 'Нет' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- График общего объёма -->
+        <h2>График общего объёма по судам</h2>
+        <img src="data:image/png;base64,{{ volume_chart_base64 }}" alt="Общий объём по судам" class="img-fluid">
+        
+        <!-- Детальная аналитика по загрязнителям -->
+        <h2>Аналитика по загрязнителям для каждого судна</h2>
+        {% for row in summary_results %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <strong>{{ row.ship_name }}</strong>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Загрязнитель</th>
+                            <th>Объём (куб.м)</th>
+                            <th>Стоимость</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p_row in pollutants_results %}
+                        {% if p_row.ship_name == row.ship_name %}
+                        <tr>
+                            <td>{{ p_row.pollutant_name }}</td>
+                            <td>{{ p_row.total_volume or 0 }}</td>
+                            <td>{{ p_row.total_cost or 0 }}</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <!-- Пай-чарт для этого судна -->
+                {% if pie_charts[row.ship_name] %}
+                <h4>Распределение стоимости</h4>
+                <img src="data:image/png;base64,{{ pie_charts[row.ship_name] }}" alt="Распределение для {{ row.ship_name }}" class="img-fluid">
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- Список операций (как раньше) -->
+        <h2>Детали операций</h2>
         {% for op in operations %}
         <div class="card mb-3">
             <div class="card-header">

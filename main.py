@@ -2,11 +2,15 @@ from fastapi import FastAPI, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import create_engine, Column, Integer, String, Date, Float, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Date, Float, Boolean, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from datetime import date
 import os
+import matplotlib.pyplot as plt
+import numpy as np
+from io import BytesIO
+import base64
 
 # Настройка базы данных
 SQLALCHEMY_DATABASE_URL = "sqlite:///./fleet.db"
@@ -96,7 +100,7 @@ def init_data(db: Session):
             db.add(Contractor(name=name))
     
     if db.query(Pollutant).count() == 0:
-        pollutants = ["Питьевая вода", "Хозфекальные воды", "Шлам", "Бытовой мусор"]
+        pollutants = ["Питьевая вода", "Хозфекальные воды", "Шлам", "Бытовой мусор"]  # Добавьте больше при необходимости
         for name in pollutants:
             db.add(Pollutant(name=name))
     
@@ -109,6 +113,7 @@ def startup_event():
     db.close()
 
 # Маршруты
+
 @app.get("/", response_class=HTMLResponse)
 async def list_operations(request: Request, db: Session = Depends(get_db)):
     operations = db.query(Operation).all()
@@ -131,14 +136,12 @@ async def create_operation(
     date: date = Form(...),
     db: Session = Depends(get_db)
 ):
-    # Создаём операцию
     operation = Operation(
         ship_id=ship_id, port_id=port_id, contractor_id=contractor_id, date=date
     )
     db.add(operation)
-    db.flush()  # Получаем operation.id без коммита
+    db.flush()  # Получаем operation.id
 
-    # Получаем данные о загрязнителях из формы
     form_data = await request.form()
     pollutants = db.query(Pollutant).all()
     for pollutant in pollutants:
@@ -185,17 +188,14 @@ async def update_operation(
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
     
-    # Обновляем основную информацию
     operation.ship_id = ship_id
     operation.port_id = port_id
     operation.contractor_id = contractor_id
     operation.date = date
     operation.has_documents = has_documents
 
-    # Удаляем старые записи о загрязнителях
     db.query(OperationPollutant).filter(OperationPollutant.operation_id == operation_id).delete()
 
-    # Получаем данные о загрязнителях из формы
     form_data = await request.form()
     pollutants = db.query(Pollutant).all()
     for pollutant in pollutants:
@@ -223,5 +223,86 @@ async def delete_operation(operation_id: int, db: Session = Depends(get_db)):
 
 @app.get("/analytics", response_class=HTMLResponse)
 async def analytics(request: Request, db: Session = Depends(get_db)):
-    operations = db.query(Operation).all()
-    return templates.TemplateResponse("analytics.html", {"request": request, "operations": operations})
+    current_date = date(2025, 9, 28)  # Текущая дата
+
+    # Суммарная аналитика по судам
+    summary_query = (
+        db.query(
+            Ship.name.label("ship_name"),
+            func.count(Operation.id).label("operation_count"),
+            func.sum(OperationPollutant.volume).label("total_volume"),
+            func.sum(OperationPollutant.cost).label("total_cost"),
+            func.group_concat(Pollutant.name.distinct()).label("pollutant_types"),
+            func.min(Operation.date).label("first_operation"),
+            func.max(Operation.date).label("last_operation")
+        )
+        .outerjoin(Operation, Ship.id == Operation.ship_id)
+        .outerjoin(OperationPollutant, Operation.id == OperationPollutant.operation_id)
+        .outerjoin(Pollutant, OperationPollutant.pollutant_id == Pollutant.id)
+        .filter(Operation.date <= current_date)
+        .group_by(Ship.id)
+        .order_by(Ship.name)
+    )
+    summary_results = summary_query.all()
+
+    # Аналитика по загрязнителям для каждого судна
+    pollutants_query = (
+        db.query(
+            Ship.name.label("ship_name"),
+            Pollutant.name.label("pollutant_name"),
+            func.sum(OperationPollutant.volume).label("total_volume"),
+            func.sum(OperationPollutant.cost).label("total_cost")
+        )
+        .outerjoin(Operation, Ship.id == Operation.ship_id)
+        .outerjoin(OperationPollutant, Operation.id == OperationPollutant.operation_id)
+        .outerjoin(Pollutant, OperationPollutant.pollutant_id == Pollutant.id)
+        .filter(Operation.date <= current_date)
+        .filter((OperationPollutant.volume > 0) | (OperationPollutant.cost > 0))
+        .group_by(Ship.name, Pollutant.name)
+        .order_by(Ship.name, Pollutant.name)
+    )
+    pollutants_results = pollutants_query.all()
+
+    # Генерация графика: Общий объём по судам
+    ship_names = [row.ship_name for row in summary_results]
+    total_volumes = [row.total_volume or 0 for row in summary_results]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(ship_names, total_volumes)
+    ax.set_xlabel('Судно')
+    ax.set_ylabel('Общий объём (куб.м)')
+    ax.set_title('Общий объём загрязнителей/воды по судам')
+    ax.tick_params(axis='x', rotation=45)
+    buffer = BytesIO()
+    plt.savefig(buffer, format='png', bbox_inches='tight')
+    buffer.seek(0)
+    volume_chart_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    plt.close(fig)
+
+    # Генерация пай-чартов для распределения стоимости по загрязнителям для каждого судна
+    pie_charts = {}
+    ships = db.query(Ship).order_by(Ship.name).all()
+    for ship in ships:
+        ship_pollutants = [
+            row for row in pollutants_results if row.ship_name == ship.name
+        ]
+        if ship_pollutants:
+            poll_names = [row.pollutant_name for row in ship_pollutants]
+            poll_costs = [row.total_cost or 0 for row in ship_pollutants]
+            fig_pie, ax_pie = plt.subplots(figsize=(8, 6))
+            ax_pie.pie(poll_costs, labels=poll_names, autopct='%1.1f%%', startangle=90)
+            ax_pie.set_title(f'Распределение стоимости по загрязнителям для {ship.name}')
+            buffer_pie = BytesIO()
+            plt.savefig(buffer_pie, format='png', bbox_inches='tight')
+            buffer_pie.seek(0)
+            pie_charts[ship.name] = base64.b64encode(buffer_pie.read()).decode('utf-8')
+            plt.close(fig_pie)
+
+    operations = db.query(Operation).filter(Operation.date <= current_date).all()
+    return templates.TemplateResponse("analytics.html", {
+        "request": request,
+        "operations": operations,
+        "summary_results": summary_results,
+        "pollutants_results": pollutants_results,
+        "volume_chart_base64": volume_chart_base64,
+        "pie_charts": pie_charts
+    })
