@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Редактировать обработку</title>
+</head>
+<body>
+    <h1>Редактировать обработку</h1>
+    <form method="post">
+        <label>Судно:</label>
+        <select name="ship_id">
+            {% for ship in ships %}
+            <option value="{{ ship.id }}" {% if ship.id == operation.ship_id %}selected{% endif %}>{{ ship.name }}</option>
+            {% endfor %}
+        </select><br>
+        <label>Порт:</label>
+        <select name="port_id">
+            {% for port in ports %}
+            <option value="{{ port.id }}" {% if port.id == operation.port_id %}selected{% endif %}>{{ port.name }}</option>
+            {% endfor %}
+        </select><br>
+        <label>Контрагент:</label>
+        <select name="contractor_id">
+            {% for contractor in contractors %}
+            <option value="{{ contractor.id }}" {% if contractor.id == operation.contractor_id %}selected{% endif %}>{{ contractor.name }}</option>
+            {% endfor %}
+        </select><br>
+        <label>Дата:</label>
+        <input type="date" name="date" value="{{ operation.date }}"><br>
+        <label>Поставка воды (куб.м):</label>
+        <input type="number" step="0.01" name="water_volume" value="{{ operation.water_volume }}"><br>
+        <label>Стоимость воды:</label>
+        <input type="number" step="0.01" name="water_cost" value="{{ operation.water_cost }}"><br>
+        <label>Хозфекальные воды (куб.м):</label>
+        <input type="number" step="0.01" name="hf_waters_volume" value="{{ operation.hf_waters_volume }}"><br>
+        <label>Стоимость хозфекальных вод:</label>
+        <input type="number" step="0.01" name="hf_waters_cost" value="{{ operation.hf_waters_cost }}"><br>
+        <label>Шлам (куб.м):</label>
+        <input type="number" step="0.01" name="sludge_volume" value="{{ operation.sludge_volume }}"><br>
+        <label>Стоимость шлама:</label>
+        <input type="number" step="0.01" name="sludge_cost" value="{{ operation.sludge_cost }}"><br>
+        <label>Бытовой мусор (куб.м):</label>
+        <input type="number" step="0.01" name="garbage_volume" value="{{ operation.garbage_volume }}"><br>
+        <label>Стоимость бытового мусора:</label>
+        <input type="number" step="0.01" name="garbage_cost" value="{{ operation.garbage_cost }}"><br>
+        <label>Закрывающие документы:</label>
+        <input type="checkbox" name="has_documents" {% if operation.has_documents %}checked{% endif %}><br>
+        <input type="submit" value="Сохранить">
+    </form>
+</body>
+</html>

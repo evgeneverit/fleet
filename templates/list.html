@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Обработки</title>
+</head>
+<body>
+    <h1>Список обработок</h1>
+    <a href="/create">Создать новую запись</a>
+    <table border="1">
+        <tr>
+            <th>Судно</th>
+            <th>Дата</th>
+            <th>Контрагент</th>
+            <th>Закрывающие документы</th>
+            <th>Действия</th>
+        </tr>
+        {% for op in operations %}
+        <tr>
+            <td>{{ op.ship.name }}</td>
+            <td>{{ op.date }}</td>
+            <td>{{ op.contractor.name }}</td>
+            <td>{% if op.has_documents %}Да{% else %}Нет{% endif %}</td>
+            <td><a href="/edit/{{ op.id }}">Редактировать</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

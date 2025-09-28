@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Создать обработку</title>
+</head>
+<body>
+    <h1>Создать новую обработку</h1>
+    <form method="post">
+        <label>Судно:</label>
+        <select name="ship_id">
+            {% for ship in ships %}
+            <option value="{{ ship.id }}">{{ ship.name }}</option>
+            {% endfor %}
+        </select><br>
+        <label>Порт:</label>
+        <select name="port_id">
+            {% for port in ports %}
+            <option value="{{ port.id }}">{{ port.name }}</option>
+            {% endfor %}
+        </select><br>
+        <label>Контрагент:</label>
+        <select name="contractor_id">
+            {% for contractor in contractors %}
+            <option value="{{ contractor.id }}">{{ contractor.name }}</option>
+            {% endfor %}
+        </select><br>
+        <label>Дата:</label>
+        <input type="date" name="date"><br>
+        <label>Поставка воды (куб.м):</label>
+        <input type="number" step="0.01" name="water_volume" value="0"><br>
+        <label>Стоимость воды:</label>
+        <input type="number" step="0.01" name="water_cost" value="0"><br>
+        <label>Хозфекальные воды (куб.м):</label>
+        <input type="number" step="0.01" name="hf_waters_volume" value="0"><br>
+        <label>Стоимость хозфекальных вод:</label>
+        <input type="number" step="0.01" name="hf_waters_cost" value="0"><br>
+        <label>Шлам (куб.м):</label>
+        <input type="number" step="0.01" name="sludge_volume" value="0"><br>
+        <label>Стоимость шлама:</label>
+        <input type="number" step="0.01" name="sludge_cost" value="0"><br>
+        <label>Бытовой мусор (куб.м):</label>
+        <input type="number" step="0.01" name="garbage_volume" value="0"><br>
+        <label>Стоимость бытового мусора:</label>
+        <input type="number" step="0.01" name="garbage_cost" value="0"><br>
+        <input type="submit" value="Создать">
+    </form>
+</body>
+</html>
