@@ -167,13 +167,14 @@ async def create_operation(
     for pollutant in pollutants:
         volume_key = f"volume_{pollutant.id}"
         cost_key = f"cost_{pollutant.id}"
-        volume = float(form_data.get(volume_key, 0.0))
-        cost = float(form_data.get(cost_key, 0.0))
-        if volume > 0 or cost > 0:
-            operation_pollutant = OperationPollutant(
-                operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
-            )
-            db.add(operation_pollutant)
+        if volume_key in form_data and cost_key in form_data:
+            volume = float(form_data.get(volume_key, 0.0))
+            cost = float(form_data.get(cost_key, 0.0))
+            if volume > 0 or cost > 0:
+                operation_pollutant = OperationPollutant(
+                    operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
+                )
+                db.add(operation_pollutant)
     
     db.commit()
     return RedirectResponse(url="/", status_code=303)
@@ -221,13 +222,14 @@ async def update_operation(
     for pollutant in pollutants:
         volume_key = f"volume_{pollutant.id}"
         cost_key = f"cost_{pollutant.id}"
-        volume = float(form_data.get(volume_key, 0.0))
-        cost = float(form_data.get(cost_key, 0.0))
-        if volume > 0 or cost > 0:
-            operation_pollutant = OperationPollutant(
-                operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
-            )
-            db.add(operation_pollutant)
+        if volume_key in form_data and cost_key in form_data:
+            volume = float(form_data.get(volume_key, 0.0))
+            cost = float(form_data.get(cost_key, 0.0))
+            if volume > 0 or cost > 0:
+                operation_pollutant = OperationPollutant(
+                    operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
+                )
+                db.add(operation_pollutant)
     
     db.commit()
     return RedirectResponse(url="/", status_code=303)
@@ -244,7 +246,6 @@ async def delete_operation(operation_id: int, db: Session = Depends(get_db)):
 @app.get("/analytics", response_class=HTMLResponse)
 async def analytics(request: Request, db: Session = Depends(get_db)):
     current_date = date(2025, 9, 28)
-
     summary_query = (
         db.query(
             Ship.name.label("ship_name"),
