@@ -13,6 +13,7 @@
             <a class="navbar-brand" href="/">Управление обработками флота</a>
             <div class="navbar-nav">
                 <a class="nav-link" href="/">Назад к списку</a>
+                <a class="nav-link" href="/analytics">Аналитика</a>
             </div>
         </div>
     </nav>
@@ -47,38 +48,16 @@
                 <label for="date" class="form-label">Дата</label>
                 <input type="date" name="date" id="date" class="form-control" required>
             </div>
+            {% for pollutant in pollutants %}
             <div class="col-md-6">
-                <label for="water_volume" class="form-label">Поставка воды (куб.м)</label>
-                <input type="number" step="0.01" name="water_volume" id="water_volume" value="0" class="form-control">
+                <label for="volume_{{ pollutant.id }}" class="form-label">{{ pollutant.name }} (куб.м)</label>
+                <input type="number" step="0.01" name="volume_{{ pollutant.id }}" id="volume_{{ pollutant.id }}" value="0" class="form-control">
             </div>
             <div class="col-md-6">
-                <label for="water_cost" class="form-label">Стоимость воды</label>
-                <input type="number" step="0.01" name="water_cost" id="water_cost" value="0" class="form-control">
+                <label for="cost_{{ pollutant.id }}" class="form-label">Стоимость {{ pollutant.name }}</label>
+                <input type="number" step="0.01" name="cost_{{ pollutant.id }}" id="cost_{{ pollutant.id }}" value="0" class="form-control">
             </div>
-            <div class="col-md-6">
-                <label for="hf_waters_volume" class="form-label">Хозфекальные воды (куб.м)</label>
-                <input type="number" step="0.01" name="hf_waters_volume" id="hf_waters_volume" value="0" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="hf_waters_cost" class="form-label">Стоимость хозфекальных вод</label>
-                <input type="number" step="0.01" name="hf_waters_cost" id="hf_waters_cost" value="0" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="sludge_volume" class="form-label">Шлам (куб.м)</label>
-                <input type="number" step="0.01" name="sludge_volume" id="sludge_volume" value="0" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="sludge_cost" class="form-label">Стоимость шлама</label>
-                <input type="number" step="0.01" name="sludge_cost" id="sludge_cost" value="0" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="garbage_volume" class="form-label">Бытовой мусор (куб.м)</label>
-                <input type="number" step="0.01" name="garbage_volume" id="garbage_volume" value="0" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="garbage_cost" class="form-label">Стоимость бытового мусора</label>
-                <input type="number" step="0.01" name="garbage_cost" id="garbage_cost" value="0" class="form-control">
-            </div>
+            {% endfor %}
             <div class="col-12">
                 <button type="submit" class="btn btn-primary">Создать</button>
                 <a href="/" class="btn btn-secondary">Отмена</a>

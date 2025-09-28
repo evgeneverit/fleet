@@ -30,6 +30,11 @@ class Contractor(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
 
+class Pollutant(Base):
+    __tablename__ = "pollutants"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+
 class Operation(Base):
     __tablename__ = "operations"
     id = Column(Integer, primary_key=True, index=True)
@@ -37,19 +42,23 @@ class Operation(Base):
     port_id = Column(Integer, ForeignKey("ports.id"))
     contractor_id = Column(Integer, ForeignKey("contractors.id"))
     date = Column(Date)
-    water_volume = Column(Float, default=0.0)  # Поставка воды, куб.м
-    water_cost = Column(Float, default=0.0)
-    hf_waters_volume = Column(Float, default=0.0)  # Хозфекальные воды
-    hf_waters_cost = Column(Float, default=0.0)
-    sludge_volume = Column(Float, default=0.0)  # Шлам
-    sludge_cost = Column(Float, default=0.0)
-    garbage_volume = Column(Float, default=0.0)  # Бытовой мусор
-    garbage_cost = Column(Float, default=0.0)
     has_documents = Column(Boolean, default=False)
 
     ship = relationship("Ship")
     port = relationship("Port")
     contractor = relationship("Contractor")
+    pollutants = relationship("OperationPollutant", back_populates="operation", cascade="all, delete-orphan")
+
+class OperationPollutant(Base):
+    __tablename__ = "operation_pollutants"
+    id = Column(Integer, primary_key=True, index=True)
+    operation_id = Column(Integer, ForeignKey("operations.id"))
+    pollutant_id = Column(Integer, ForeignKey("pollutants.id"))
+    volume = Column(Float, default=0.0)
+    cost = Column(Float, default=0.0)
+
+    operation = relationship("Operation", back_populates="pollutants")
+    pollutant = relationship("Pollutant")
 
 # Создание таблиц
 Base.metadata.create_all(bind=engine)
@@ -86,6 +95,11 @@ def init_data(db: Session):
         for name in contractors:
             db.add(Contractor(name=name))
     
+    if db.query(Pollutant).count() == 0:
+        pollutants = ["Питьевая вода", "Хозфекальные воды", "Шлам", "Бытовой мусор"]
+        for name in pollutants:
+            db.add(Pollutant(name=name))
+    
     db.commit()
 
 @app.on_event("startup")
@@ -105,32 +119,39 @@ async def create_form(request: Request, db: Session = Depends(get_db)):
     ships = db.query(Ship).all()
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
-    return templates.TemplateResponse("create.html", {"request": request, "ships": ships, "ports": ports, "contractors": contractors})
+    pollutants = db.query(Pollutant).all()
+    return templates.TemplateResponse("create.html", {"request": request, "ships": ships, "ports": ports, "contractors": contractors, "pollutants": pollutants})
 
 @app.post("/create")
 async def create_operation(
+    request: Request,
     ship_id: int = Form(...),
     port_id: int = Form(...),
     contractor_id: int = Form(...),
     date: date = Form(...),
-    water_volume: float = Form(0.0),
-    water_cost: float = Form(0.0),
-    hf_waters_volume: float = Form(0.0),
-    hf_waters_cost: float = Form(0.0),
-    sludge_volume: float = Form(0.0),
-    sludge_cost: float = Form(0.0),
-    garbage_volume: float = Form(0.0),
-    garbage_cost: float = Form(0.0),
     db: Session = Depends(get_db)
 ):
+    # Создаём операцию
     operation = Operation(
-        ship_id=ship_id, port_id=port_id, contractor_id=contractor_id, date=date,
-        water_volume=water_volume, water_cost=water_cost,
-        hf_waters_volume=hf_waters_volume, hf_waters_cost=hf_waters_cost,
-        sludge_volume=sludge_volume, sludge_cost=sludge_cost,
-        garbage_volume=garbage_volume, garbage_cost=garbage_cost
+        ship_id=ship_id, port_id=port_id, contractor_id=contractor_id, date=date
     )
     db.add(operation)
+    db.flush()  # Получаем operation.id без коммита
+
+    # Получаем данные о загрязнителях из формы
+    form_data = await request.form()
+    pollutants = db.query(Pollutant).all()
+    for pollutant in pollutants:
+        volume_key = f"volume_{pollutant.id}"
+        cost_key = f"cost_{pollutant.id}"
+        volume = float(form_data.get(volume_key, 0.0))
+        cost = float(form_data.get(cost_key, 0.0))
+        if volume > 0 or cost > 0:
+            operation_pollutant = OperationPollutant(
+                operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
+            )
+            db.add(operation_pollutant)
+    
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
@@ -142,42 +163,52 @@ async def edit_form(operation_id: int, request: Request, db: Session = Depends(g
     ships = db.query(Ship).all()
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
-    return templates.TemplateResponse("edit.html", {"request": request, "operation": operation, "ships": ships, "ports": ports, "contractors": contractors})
+    pollutants = db.query(Pollutant).all()
+    operation_pollutants = {op.pollutant_id: op for op in operation.pollutants}
+    return templates.TemplateResponse("edit.html", {
+        "request": request, "operation": operation, "ships": ships, "ports": ports,
+        "contractors": contractors, "pollutants": pollutants, "operation_pollutants": operation_pollutants
+    })
 
 @app.post("/edit/{operation_id}")
 async def update_operation(
     operation_id: int,
+    request: Request,
     ship_id: int = Form(...),
     port_id: int = Form(...),
     contractor_id: int = Form(...),
     date: date = Form(...),
-    water_volume: float = Form(0.0),
-    water_cost: float = Form(0.0),
-    hf_waters_volume: float = Form(0.0),
-    hf_waters_cost: float = Form(0.0),
-    sludge_volume: float = Form(0.0),
-    sludge_cost: float = Form(0.0),
-    garbage_volume: float = Form(0.0),
-    garbage_cost: float = Form(0.0),
     has_documents: bool = Form(False),
     db: Session = Depends(get_db)
 ):
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
+    
+    # Обновляем основную информацию
     operation.ship_id = ship_id
     operation.port_id = port_id
     operation.contractor_id = contractor_id
     operation.date = date
-    operation.water_volume = water_volume
-    operation.water_cost = water_cost
-    operation.hf_waters_volume = hf_waters_volume
-    operation.hf_waters_cost = hf_waters_cost
-    operation.sludge_volume = sludge_volume
-    operation.sludge_cost = sludge_cost
-    operation.garbage_volume = garbage_volume
-    operation.garbage_cost = garbage_cost
     operation.has_documents = has_documents
+
+    # Удаляем старые записи о загрязнителях
+    db.query(OperationPollutant).filter(OperationPollutant.operation_id == operation_id).delete()
+
+    # Получаем данные о загрязнителях из формы
+    form_data = await request.form()
+    pollutants = db.query(Pollutant).all()
+    for pollutant in pollutants:
+        volume_key = f"volume_{pollutant.id}"
+        cost_key = f"cost_{pollutant.id}"
+        volume = float(form_data.get(volume_key, 0.0))
+        cost = float(form_data.get(cost_key, 0.0))
+        if volume > 0 or cost > 0:
+            operation_pollutant = OperationPollutant(
+                operation_id=operation.id, pollutant_id=pollutant.id, volume=volume, cost=cost
+            )
+            db.add(operation_pollutant)
+    
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
@@ -189,3 +220,8 @@ async def delete_operation(operation_id: int, db: Session = Depends(get_db)):
     db.delete(operation)
     db.commit()
     return RedirectResponse(url="/", status_code=303)
+
+@app.get("/analytics", response_class=HTMLResponse)
+async def analytics(request: Request, db: Session = Depends(get_db)):
+    operations = db.query(Operation).all()
+    return templates.TemplateResponse("analytics.html", {"request": request, "operations": operations})

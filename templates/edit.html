@@ -13,6 +13,7 @@
             <a class="navbar-brand" href="/">Управление обработками флота</a>
             <div class="navbar-nav">
                 <a class="nav-link" href="/">Назад к списку</a>
+                <a class="nav-link" href="/analytics">Аналитика</a>
             </div>
         </div>
     </nav>
@@ -47,38 +48,18 @@
                 <label for="date" class="form-label">Дата</label>
                 <input type="date" name="date" id="date" value="{{ operation.date }}" class="form-control" required>
             </div>
+            {% for pollutant in pollutants %}
             <div class="col-md-6">
-                <label for="water_volume" class="form-label">Поставка воды (куб.м)</label>
-                <input type="number" step="0.01" name="water_volume" id="water_volume" value="{{ operation.water_volume }}" class="form-control">
+                <label for="volume_{{ pollutant.id }}" class="form-label">{{ pollutant.name }} (куб.м)</label>
+                <input type="number" step="0.01" name="volume_{{ pollutant.id }}" id="volume_{{ pollutant.id }}"
+                       value="{{ operation_pollutants[pollutant.id].volume if pollutant.id in operation_pollutants else 0 }}" class="form-control">
             </div>
             <div class="col-md-6">
-                <label for="water_cost" class="form-label">Стоимость воды</label>
-                <input type="number" step="0.01" name="water_cost" id="water_cost" value="{{ operation.water_cost }}" class="form-control">
+                <label for="cost_{{ pollutant.id }}" class="form-label">Стоимость {{ pollutant.name }}</label>
+                <input type="number" step="0.01" name="cost_{{ pollutant.id }}" id="cost_{{ pollutant.id }}"
+                       value="{{ operation_pollutants[pollutant.id].cost if pollutant.id in operation_pollutants else 0 }}" class="form-control">
             </div>
-            <div class="col-md-6">
-                <label for="hf_waters_volume" class="form-label">Хозфекальные воды (куб.м)</label>
-                <input type="number" step="0.01" name="hf_waters_volume" id="hf_waters_volume" value="{{ operation.hf_waters_volume }}" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="hf_waters_cost" class="form-label">Стоимость хозфекальных вод</label>
-                <input type="number" step="0.01" name="hf_waters_cost" id="hf_waters_cost" value="{{ operation.hf_waters_cost }}" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="sludge_volume" class="form-label">Шлам (куб.м)</label>
-                <input type="number" step="0.01" name="sludge_volume" id="sludge_volume" value="{{ operation.sludge_volume }}" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="sludge_cost" class="form-label">Стоимость шлама</label>
-                <input type="number" step="0.01" name="sludge_cost" id="sludge_cost" value="{{ operation.sludge_cost }}" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="garbage_volume" class="form-label">Бытовой мусор (куб.м)</label>
-                <input type="number" step="0.01" name="garbage_volume" id="garbage_volume" value="{{ operation.garbage_volume }}" class="form-control">
-            </div>
-            <div class="col-md-6">
-                <label for="garbage_cost" class="form-label">Стоимость бытового мусора</label>
-                <input type="number" step="0.01" name="garbage_cost" id="garbage_cost" value="{{ operation.garbage_cost }}" class="form-control">
-            </div>
+            {% endfor %}
             <div class="col-md-6">
                 <label for="has_documents" class="form-label">Закрывающие документы</label>
                 <input type="checkbox" name="has_documents" id="has_documents" {% if operation.has_documents %}checked{% endif %} class="form-check-input">
