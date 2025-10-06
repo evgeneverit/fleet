@@ -18,27 +18,28 @@ async def list_operations(
     ship_ids: str = None,
     start_date: str = None,
     end_date: str = None,
-    port_id: int = None,
-    contractor_id: int = None,
+    port_ids: str = None,  # Изменено: строка для множественного
+    contractor_ids: str = None,  # Изменено: строка для множественного
     sort_order: str = "desc",
     page: int = 1,
     per_page: int = 10,
     db: Session = Depends(get_db)
 ):
     """
-    Отображает список операций с фильтрами, сортировкой и пагинацией.
+    Отображает список операций с гибкой фильтрацией.
     """
     query = db.query(Operation)
     
-    # Фильтр по судам
+    # Фильтр по судам (множественный, опциональный)
     if ship_ids:
         try:
-            ship_ids_list = [int(id) for id in ship_ids.split(",") if id]
-            query = query.filter(Operation.ship_id.in_(ship_ids_list))
+            ship_ids_list = [int(id.strip()) for id in ship_ids.split(",") if id.strip()]
+            if ship_ids_list:
+                query = query.filter(Operation.ship_id.in_(ship_ids_list))
         except ValueError:
-            pass
+            pass  # Игнор при некорректных ID
     
-    # Фильтр по датам
+    # Фильтр по датам (опциональный)
     if start_date:
         try:
             start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -53,13 +54,23 @@ async def list_operations(
         except ValueError:
             pass
     
-    # Фильтр по порту
-    if port_id:
-        query = query.filter(Operation.port_id == port_id)
+    # Фильтр по портам (множественный, опциональный)
+    if port_ids:
+        try:
+            port_ids_list = [int(id.strip()) for id in port_ids.split(",") if id.strip()]
+            if port_ids_list:
+                query = query.filter(Operation.port_id.in_(port_ids_list))
+        except ValueError:
+            pass
     
-    # Фильтр по контрагенту
-    if contractor_id:
-        query = query.filter(Operation.contractor_id == contractor_id)
+    # Фильтр по контрагентам (множественный, опциональный)
+    if contractor_ids:
+        try:
+            contractor_ids_list = [int(id.strip()) for id in contractor_ids.split(",") if id.strip()]
+            if contractor_ids_list:
+                query = query.filter(Operation.contractor_id.in_(contractor_ids_list))
+        except ValueError:
+            pass
     
     # Сортировка
     if sort_order.lower() == "asc":
@@ -94,8 +105,8 @@ async def list_operations(
         "selected_ship_ids": ship_ids.split(",") if ship_ids else [],
         "selected_start_date": start_date,
         "selected_end_date": end_date,
-        "selected_port_id": port_id,
-        "selected_contractor_id": contractor_id,
+        "selected_port_ids": port_ids.split(",") if port_ids else [],  # Изменено
+        "selected_contractor_ids": contractor_ids.split(",") if contractor_ids else [],  # Изменено
         "sort_order": sort_order,
         "total_pages": (total // per_page) + (1 if total % per_page else 0),
         "current_page": page,
@@ -104,9 +115,6 @@ async def list_operations(
 
 @router.get("/operation/{operation_id}", response_class=JSONResponse)
 async def get_operation(operation_id: int, db: Session = Depends(get_db)):
-    """
-    Возвращает детали операции в JSON для модального окна.
-    """
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
@@ -130,9 +138,6 @@ async def get_operation(operation_id: int, db: Session = Depends(get_db)):
 
 @router.get("/create", response_class=HTMLResponse)
 async def create_form(request: Request, db: Session = Depends(get_db)):
-    """
-    Отображает форму для создания новой операции.
-    """
     ships = db.query(Ship).all()
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
@@ -155,10 +160,6 @@ async def create_operation(
     request: Request = None,
     db: Session = Depends(get_db)
 ):
-    """
-    Создает новую операцию с загрузкой документа и загрязнителями.
-    """
-    # Валидация входных данных
     if not db.query(Ship).filter(Ship.id == ship_id).first():
         raise HTTPException(status_code=400, detail="Судно не найдено")
     if not db.query(Port).filter(Port.id == port_id).first():
@@ -176,7 +177,6 @@ async def create_operation(
     db.add(operation)
     db.flush()
 
-    # Сохранение документа
     if document:
         os.makedirs("uploads", exist_ok=True)
         file_path = f"uploads/op_{operation.id}_{document.filename}"
@@ -184,7 +184,6 @@ async def create_operation(
             shutil.copyfileobj(document.file, buffer)
         operation.document_path = file_path
 
-    # Обработка загрязнителей
     form_data = await request.form()
     pollutants = db.query(Pollutant).all()
     for pollutant in pollutants:
@@ -215,9 +214,6 @@ async def create_operation(
 
 @router.get("/edit/{operation_id}", response_class=HTMLResponse)
 async def edit_form(operation_id: int, request: Request, db: Session = Depends(get_db)):
-    """
-    Отображает форму для редактирования операции.
-    """
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
@@ -247,14 +243,10 @@ async def update_operation(
     document: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
-    """
-    Обновляет существующую операцию.
-    """
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
     
-    # Валидация входных данных
     if not db.query(Ship).filter(Ship.id == ship_id).first():
         raise HTTPException(status_code=400, detail="Судно не найдено")
     if not db.query(Port).filter(Port.id == port_id).first():
@@ -267,7 +259,6 @@ async def update_operation(
     operation.contractor_id = contractor_id
     operation.date = date
     
-    # Обновление документа
     if document:
         os.makedirs("uploads", exist_ok=True)
         file_path = f"uploads/op_{operation.id}_{document.filename}"
@@ -278,10 +269,8 @@ async def update_operation(
     else:
         operation.has_documents = bool(operation.document_path)
 
-    # Удаление старых загрязнителей
     db.query(OperationPollutant).filter(OperationPollutant.operation_id == operation_id).delete()
 
-    # Добавление новых загрязнителей
     form_data = await request.form()
     pollutants = db.query(Pollutant).all()
     for pollutant in pollutants:
@@ -312,9 +301,6 @@ async def update_operation(
 
 @router.post("/delete/{operation_id}")
 async def delete_operation(operation_id: int, db: Session = Depends(get_db)):
-    """
-    Удаляет операцию.
-    """
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
@@ -324,9 +310,6 @@ async def delete_operation(operation_id: int, db: Session = Depends(get_db)):
 
 @router.get("/download/{operation_id}")
 async def download_document(operation_id: int, db: Session = Depends(get_db)):
-    """
-    Скачивает документ, связанный с операцией.
-    """
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation or not operation.document_path:
         raise HTTPException(status_code=404, detail="Документ не найден")
