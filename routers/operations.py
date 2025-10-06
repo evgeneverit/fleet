@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, File, UploadFile, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -15,11 +15,11 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/", response_class=HTMLResponse)
 async def list_operations(
     request: Request,
-    ship_ids: str = None,
+    ship_ids: list[int] = Query(None),
     start_date: str = None,
     end_date: str = None,
-    port_ids: str = None,  # Изменено: строка для множественного
-    contractor_ids: str = None,  # Изменено: строка для множественного
+    port_ids: list[int] = Query(None),
+    contractor_ids: list[int] = Query(None),
     sort_order: str = "desc",
     page: int = 1,
     per_page: int = 10,
@@ -32,12 +32,7 @@ async def list_operations(
     
     # Фильтр по судам (множественный, опциональный)
     if ship_ids:
-        try:
-            ship_ids_list = [int(id.strip()) for id in ship_ids.split(",") if id.strip()]
-            if ship_ids_list:
-                query = query.filter(Operation.ship_id.in_(ship_ids_list))
-        except ValueError:
-            pass  # Игнор при некорректных ID
+        query = query.filter(Operation.ship_id.in_(ship_ids))
     
     # Фильтр по датам (опциональный)
     if start_date:
@@ -56,21 +51,11 @@ async def list_operations(
     
     # Фильтр по портам (множественный, опциональный)
     if port_ids:
-        try:
-            port_ids_list = [int(id.strip()) for id in port_ids.split(",") if id.strip()]
-            if port_ids_list:
-                query = query.filter(Operation.port_id.in_(port_ids_list))
-        except ValueError:
-            pass
+        query = query.filter(Operation.port_id.in_(port_ids))
     
     # Фильтр по контрагентам (множественный, опциональный)
     if contractor_ids:
-        try:
-            contractor_ids_list = [int(id.strip()) for id in contractor_ids.split(",") if id.strip()]
-            if contractor_ids_list:
-                query = query.filter(Operation.contractor_id.in_(contractor_ids_list))
-        except ValueError:
-            pass
+        query = query.filter(Operation.contractor_id.in_(contractor_ids))
     
     # Сортировка
     if sort_order.lower() == "asc":
@@ -90,7 +75,11 @@ async def list_operations(
         ).scalar() or 0.0
         total_costs[op.id] = total_cost
     
-    # Данные для фильтров
+    # Данные для фильтров (selected как list[str] для Jinja2)
+    selected_ship_ids = [str(id) for id in ship_ids or []]
+    selected_port_ids = [str(id) for id in port_ids or []]
+    selected_contractor_ids = [str(id) for id in contractor_ids or []]
+    
     ships = db.query(Ship).order_by(Ship.name).all()
     ports = db.query(Port).order_by(Port.name).all()
     contractors = db.query(Contractor).order_by(Contractor.name).all()
@@ -102,17 +91,18 @@ async def list_operations(
         "ships": ships,
         "ports": ports,
         "contractors": contractors,
-        "selected_ship_ids": ship_ids.split(",") if ship_ids else [],
+        "selected_ship_ids": selected_ship_ids,
         "selected_start_date": start_date,
         "selected_end_date": end_date,
-        "selected_port_ids": port_ids.split(",") if port_ids else [],  # Изменено
-        "selected_contractor_ids": contractor_ids.split(",") if contractor_ids else [],  # Изменено
+        "selected_port_ids": selected_port_ids,
+        "selected_contractor_ids": selected_contractor_ids,
         "sort_order": sort_order,
         "total_pages": (total // per_page) + (1 if total % per_page else 0),
         "current_page": page,
         "per_page": per_page
     })
 
+# Остальные роуты (без изменений, для полноты)
 @router.get("/operation/{operation_id}", response_class=JSONResponse)
 async def get_operation(operation_id: int, db: Session = Depends(get_db)):
     operation = db.query(Operation).filter(Operation.id == operation_id).first()

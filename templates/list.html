@@ -17,11 +17,11 @@
         </nav>
 
         <!-- Фильтры -->
-        <form method="get" class="mb-3">
+        <form method="get" class="mb-3" id="filterForm">
             <div class="row g-3">
                 <div class="col-md-2">
                     <label for="ship_ids" class="form-label">Суда</label>
-                    <select multiple class="form-select" id="ship_ids" name="ship_ids[]">
+                    <select multiple class="form-select" id="ship_ids" name="ship_ids">
                         <option value="">Все суда</option>
                         {% for ship in ships %}
                         <option value="{{ ship.id }}" {% if ship.id|string in selected_ship_ids %}selected{% endif %}>{{ ship.name }}</option>
@@ -30,7 +30,7 @@
                 </div>
                 <div class="col-md-2">
                     <label for="port_ids" class="form-label">Порты</label>
-                    <select multiple class="form-select" id="port_ids" name="port_ids[]">
+                    <select multiple class="form-select" id="port_ids" name="port_ids">
                         <option value="">Все порты</option>
                         {% for port in ports %}
                         <option value="{{ port.id }}" {% if port.id|string in selected_port_ids %}selected{% endif %}>{{ port.name }}</option>
@@ -39,7 +39,7 @@
                 </div>
                 <div class="col-md-2">
                     <label for="contractor_ids" class="form-label">Контрагенты</label>
-                    <select multiple class="form-select" id="contractor_ids" name="contractor_ids[]">
+                    <select multiple class="form-select" id="contractor_ids" name="contractor_ids">
                         <option value="">Все контрагенты</option>
                         {% for contractor in contractors %}
                         <option value="{{ contractor.id }}" {% if contractor.id|string in selected_contractor_ids %}selected{% endif %}>{{ contractor.name }}</option>
@@ -61,8 +61,9 @@
                         <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>По возрастанию</option>
                     </select>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Применить</button>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary w-50">Применить</button>
+                    <button type="button" class="btn btn-secondary w-50" onclick="resetFilters()">Сбросить</button>
                 </div>
             </div>
         </form>
@@ -114,7 +115,7 @@
             <ul class="pagination">
                 {% for p in range(1, total_pages + 1) %}
                 <li class="page-item {% if p == current_page %}active{% endif %}">
-                    <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}{% if selected_ship_ids %}&ship_ids={{ selected_ship_ids | join(',') }}{% endif %}{% if selected_start_date %}&start_date={{ selected_start_date }}{% endif %}{% if selected_end_date %}&end_date={{ selected_end_date }}{% endif %}{% if selected_port_ids %}&port_ids={{ selected_port_ids | join(',') }}{% endif %}{% if selected_contractor_ids %}&contractor_ids={{ selected_contractor_ids | join(',') }}{% endif %}&sort_order={{ sort_order }}">{{ p }}</a>
+                    <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}{% if sort_order %}&sort_order={{ sort_order }}{% endif %}{% if selected_start_date %}&start_date={{ selected_start_date }}{% endif %}{% if selected_end_date %}&end_date={{ selected_end_date }}{% endif %}{% for id in selected_ship_ids %}&ship_ids={{ id }}{% endfor %}{% for id in selected_port_ids %}&port_ids={{ id }}{% endfor %}{% for id in selected_contractor_ids %}&contractor_ids={{ id }}{% endfor %}">{{ p }}</a>
                 </li>
                 {% endfor %}
             </ul>
@@ -166,6 +167,21 @@
                 li.textContent = `${p.name}: Объём=${p.volume}, Стоимость=${p.cost}`;
                 pollutantsList.appendChild(li);
             });
+        }
+
+        function resetFilters() {
+            const form = document.getElementById('filterForm');
+            form.querySelectorAll('select[multiple]').forEach(select => {
+                for (let option of select.options) {
+                    option.selected = false;
+                }
+            });
+            form.querySelectorAll('input[type="date"]').forEach(input => {
+                input.value = '';
+            });
+            form.querySelector('#sort_order').value = 'desc';
+            form.action = '/?page=1&per_page=10';
+            form.submit();
         }
     </script>
 </body>
