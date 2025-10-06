@@ -22,7 +22,6 @@
                 <div class="col-md-2">
                     <label for="ship_ids" class="form-label">Суда</label>
                     <select multiple class="form-select" id="ship_ids" name="ship_ids">
-                        <option value="">Все суда</option>
                         {% for ship in ships %}
                         <option value="{{ ship.id }}" {% if ship.id|string in selected_ship_ids %}selected{% endif %}>{{ ship.name }}</option>
                         {% endfor %}
@@ -31,7 +30,6 @@
                 <div class="col-md-2">
                     <label for="port_ids" class="form-label">Порты</label>
                     <select multiple class="form-select" id="port_ids" name="port_ids">
-                        <option value="">Все порты</option>
                         {% for port in ports %}
                         <option value="{{ port.id }}" {% if port.id|string in selected_port_ids %}selected{% endif %}>{{ port.name }}</option>
                         {% endfor %}
@@ -40,7 +38,6 @@
                 <div class="col-md-2">
                     <label for="contractor_ids" class="form-label">Контрагенты</label>
                     <select multiple class="form-select" id="contractor_ids" name="contractor_ids">
-                        <option value="">Все контрагенты</option>
                         {% for contractor in contractors %}
                         <option value="{{ contractor.id }}" {% if contractor.id|string in selected_contractor_ids %}selected{% endif %}>{{ contractor.name }}</option>
                         {% endfor %}
