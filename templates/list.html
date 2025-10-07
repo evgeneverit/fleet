@@ -17,54 +17,61 @@
             <!-- <a class="nav-link" href="/analytics">Аналитика</a> -->
         </nav>
 
-        <!-- Фильтры -->
-        <form method="get" class="mb-3" id="filterForm">
-            <div class="row g-3">
-                <div class="col-md-2">
-                    <label for="ship_ids" class="form-label">Суда</label>
-                    <select multiple class="form-select" id="ship_ids" name="ship_ids">
-                        {% for ship in ships %}
-                        <option value="{{ ship.id }}" {% if ship.id|string in selected_ship_ids %}selected{% endif %}>{{ ship.name }}</option>
-                        {% endfor %}
-                    </select>
+        <!-- Кнопка для показа/скрытия фильтров -->
+        <button class="btn btn-outline-primary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
+            Фильтрация
+        </button>
+
+        <!-- Фильтры (скрыты по умолчанию) -->
+        <div class="collapse" id="filterCollapse">
+            <form method="get" class="mb-3" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label for="ship_ids" class="form-label">Суда</label>
+                        <select multiple class="form-select" id="ship_ids" name="ship_ids">
+                            {% for ship in ships %}
+                            <option value="{{ ship.id }}" {% if ship.id|string in selected_ship_ids %}selected{% endif %}>{{ ship.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="port_ids" class="form-label">Порты</label>
+                        <select multiple class="form-select" id="port_ids" name="port_ids">
+                            {% for port in ports %}
+                            <option value="{{ port.id }}" {% if port.id|string in selected_port_ids %}selected{% endif %}>{{ port.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="contractor_ids" class="form-label">Контрагенты</label>
+                        <select multiple class="form-select" id="contractor_ids" name="contractor_ids">
+                            {% for contractor in contractors %}
+                            <option value="{{ contractor.id }}" {% if contractor.id|string in selected_contractor_ids %}selected{% endif %}>{{ contractor.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="start_date" class="form-label">Дата с</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ selected_start_date or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="end_date" class="form-label">Дата по</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" value="{{ selected_end_date or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="sort_order" class="form-label">Сортировка</label>
+                        <select class="form-select" id="sort_order" name="sort_order">
+                            <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>По убыванию</option>
+                            <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>По возрастанию</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="submit" class="btn btn-primary w-50">Применить</button>
+                        <button type="button" class="btn btn-secondary w-50" onclick="resetFilters()">Сбросить</button>
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <label for="port_ids" class="form-label">Порты</label>
-                    <select multiple class="form-select" id="port_ids" name="port_ids">
-                        {% for port in ports %}
-                        <option value="{{ port.id }}" {% if port.id|string in selected_port_ids %}selected{% endif %}>{{ port.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="contractor_ids" class="form-label">Контрагенты</label>
-                    <select multiple class="form-select" id="contractor_ids" name="contractor_ids">
-                        {% for contractor in contractors %}
-                        <option value="{{ contractor.id }}" {% if contractor.id|string in selected_contractor_ids %}selected{% endif %}>{{ contractor.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="start_date" class="form-label">Дата с</label>
-                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ selected_start_date or '' }}">
-                </div>
-                <div class="col-md-2">
-                    <label for="end_date" class="form-label">Дата по</label>
-                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ selected_end_date or '' }}">
-                </div>
-                <div class="col-md-2">
-                    <label for="sort_order" class="form-label">Сортировка</label>
-                    <select class="form-select" id="sort_order" name="sort_order">
-                        <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>По убыванию</option>
-                        <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>По возрастанию</option>
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex align-items-end gap-2">
-                    <button type="submit" class="btn btn-primary w-50">Применить</button>
-                    <button type="button" class="btn btn-secondary w-50" onclick="resetFilters()">Сбросить</button>
-                </div>
-            </div>
-        </form>
+            </form>
+        </div>
 
         <!-- Таблица операций -->
         <table class="table table-striped">
@@ -197,6 +204,11 @@
             });
             form.querySelector('#sort_order').value = 'desc';
             form.action = '/?page=1&per_page=10';
+            // Сворачиваем форму фильтров
+            const collapse = new bootstrap.Collapse(document.getElementById('filterCollapse'), {
+                toggle: false
+            });
+            collapse.hide();
             form.submit();
         }
     </script>
