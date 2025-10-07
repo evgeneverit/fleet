@@ -17,8 +17,8 @@ class Contractor(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
 
-class Pollutant(Base):
-    __tablename__ = "pollutants"
+class Item(Base):
+    __tablename__ = "items"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
 
@@ -30,20 +30,20 @@ class Operation(Base):
     contractor_id = Column(Integer, ForeignKey("contractors.id"))
     date = Column(Date)
     has_documents = Column(Boolean, default=False)
-    document_path = Column(String, nullable=True)  # Добавляем для файлов
+    document_path = Column(String, nullable=True)
 
     ship = relationship("Ship")
     port = relationship("Port")
     contractor = relationship("Contractor")
-    pollutants = relationship("OperationPollutant", back_populates="operation", cascade="all, delete-orphan")
+    items = relationship("OperationItem", back_populates="operation", cascade="all, delete-orphan")
 
-class OperationPollutant(Base):
-    __tablename__ = "operation_pollutants"
+class OperationItem(Base):
+    __tablename__ = "operation_items"
     id = Column(Integer, primary_key=True, index=True)
     operation_id = Column(Integer, ForeignKey("operations.id"))
-    pollutant_id = Column(Integer, ForeignKey("pollutants.id"))
+    item_id = Column(Integer, ForeignKey("items.id"))
     volume = Column(Float, default=0.0)
     cost = Column(Float, default=0.0)
 
-    operation = relationship("Operation", back_populates="pollutants")
-    pollutant = relationship("Pollutant")
+    operation = relationship("Operation", back_populates="items")
+    item = relationship("Item")

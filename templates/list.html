@@ -142,8 +142,8 @@
                         <p><strong>Дата:</strong> <span id="modal-date"></span></p>
                         <p><strong>Документы:</strong> <span id="modal-documents"></span></p>
                         <p><strong>Итоговая стоимость:</strong> <span id="modal-total-cost"></span></p>
-                        <h6>Загрязнители:</h6>
-                        <ul id="modal-pollutants"></ul>
+                        <h6>Элементы операции:</h6>
+                        <ul id="modal-items"></ul>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
@@ -185,12 +185,12 @@
             document.getElementById('modal-date').textContent = data.date;
             document.getElementById('modal-documents').textContent = data.has_documents ? 'Есть' : 'Нет';
             document.getElementById('modal-total-cost').textContent = data.total_cost.toFixed(2);
-            const pollutantsList = document.getElementById('modal-pollutants');
-            pollutantsList.innerHTML = '';
-            data.pollutants.forEach(p => {
+            const itemsList = document.getElementById('modal-items');
+            itemsList.innerHTML = '';
+            data.items.forEach(item => {
                 const li = document.createElement('li');
-                li.textContent = `${p.name}: Объём=${p.volume}, Стоимость=${p.cost}`;
-                pollutantsList.appendChild(li);
+                li.textContent = `${item.name}: Объём=${item.volume}, Стоимость=${item.cost}`;
+                itemsList.appendChild(li);
             });
         }
 
@@ -204,7 +204,6 @@
             });
             form.querySelector('#sort_order').value = 'desc';
             form.action = '/?page=1&per_page=10';
-            // Сворачиваем форму фильтров
             const collapse = new bootstrap.Collapse(document.getElementById('filterCollapse'), {
                 toggle: false
             });

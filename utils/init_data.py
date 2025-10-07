@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models.schemas import Ship, Port, Contractor, Pollutant
+from models.schemas import Ship, Port, Contractor, Item
 
 def init_data(db: Session):
     if db.query(Ship).count() == 0:
@@ -22,9 +22,9 @@ def init_data(db: Session):
         for name in contractors:
             db.add(Contractor(name=name))
     
-    if db.query(Pollutant).count() == 0:
-        pollutants = ["Питьевая вода", "Хозфекальные воды", "Шлам", "Бытовой мусор"]
-        for name in pollutants:
-            db.add(Pollutant(name=name))
+    if db.query(Item).count() == 0:
+        items = ["Питьевая вода", "Хозфекальные воды", "Шлам", "Бытовой мусор"]
+        for name in items:
+            db.add(Item(name=name))
     
     db.commit()

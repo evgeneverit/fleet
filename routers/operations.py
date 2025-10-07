@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from models.database import get_db
-from models.schemas import Operation, Ship, Port, Contractor, Pollutant, OperationPollutant
+from models.schemas import Operation, Ship, Port, Contractor, Item, OperationItem
 from datetime import datetime, date
 import os
 import shutil
@@ -30,11 +30,9 @@ async def list_operations(
     """
     query = db.query(Operation)
     
-    # Фильтр по судам (множественный, опциональный)
     if ship_ids:
         query = query.filter(Operation.ship_id.in_(ship_ids))
     
-    # Фильтр по датам (опциональный)
     if start_date:
         try:
             start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -49,33 +47,27 @@ async def list_operations(
         except ValueError:
             pass
     
-    # Фильтр по портам (множественный, опциональный)
     if port_ids:
         query = query.filter(Operation.port_id.in_(port_ids))
     
-    # Фильтр по контрагентам (множественный, опциональный)
     if contractor_ids:
         query = query.filter(Operation.contractor_id.in_(contractor_ids))
     
-    # Сортировка
     if sort_order.lower() == "asc":
         query = query.order_by(Operation.date.asc())
     else:
         query = query.order_by(Operation.date.desc())
     
-    # Пагинация
     total = query.count()
     operations = query.offset((page - 1) * per_page).limit(per_page).all()
     
-    # Расчет итоговой стоимости
     total_costs = {}
     for op in operations:
-        total_cost = db.query(func.sum(OperationPollutant.cost)).filter(
-            OperationPollutant.operation_id == op.id
+        total_cost = db.query(func.sum(OperationItem.cost)).filter(
+            OperationItem.operation_id == op.id
         ).scalar() or 0.0
         total_costs[op.id] = total_cost
     
-    # Данные для фильтров (selected как list[str] для Jinja2)
     selected_ship_ids = [str(id) for id in ship_ids or []]
     selected_port_ids = [str(id) for id in port_ids or []]
     selected_contractor_ids = [str(id) for id in contractor_ids or []]
@@ -102,18 +94,17 @@ async def list_operations(
         "per_page": per_page
     })
 
-# Остальные роуты (без изменений, для полноты)
 @router.get("/operation/{operation_id}", response_class=JSONResponse)
 async def get_operation(operation_id: int, db: Session = Depends(get_db)):
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
     if not operation:
         raise HTTPException(status_code=404, detail="Операция не найдена")
-    pollutants = [
-        {"name": op.pollutant.name, "volume": op.volume, "cost": op.cost}
-        for op in operation.pollutants
+    items = [
+        {"name": op.item.name, "volume": op.volume, "cost": op.cost}
+        for op in operation.items
     ]
-    total_cost = db.query(func.sum(OperationPollutant.cost)).filter(
-        OperationPollutant.operation_id == operation.id
+    total_cost = db.query(func.sum(OperationItem.cost)).filter(
+        OperationItem.operation_id == operation.id
     ).scalar() or 0.0
     return {
         "id": operation.id,
@@ -122,7 +113,7 @@ async def get_operation(operation_id: int, db: Session = Depends(get_db)):
         "contractor": operation.contractor.name,
         "date": str(operation.date),
         "has_documents": operation.has_documents,
-        "pollutants": pollutants,
+        "items": items,
         "total_cost": total_cost
     }
 
@@ -131,13 +122,13 @@ async def create_form(request: Request, db: Session = Depends(get_db)):
     ships = db.query(Ship).all()
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
-    pollutants = db.query(Pollutant).all()
+    items = db.query(Item).all()
     return templates.TemplateResponse("create.html", {
         "request": request,
         "ships": ships,
         "ports": ports,
         "contractors": contractors,
-        "pollutants": pollutants
+        "items": items
     })
 
 @router.post("/create")
@@ -175,10 +166,10 @@ async def create_operation(
         operation.document_path = file_path
 
     form_data = await request.form()
-    pollutants = db.query(Pollutant).all()
-    for pollutant in pollutants:
-        volume_key = f"volume_{pollutant.id}"
-        cost_key = f"cost_{pollutant.id}"
+    items = db.query(Item).all()
+    for item in items:
+        volume_key = f"volume_{item.id}"
+        cost_key = f"cost_{item.id}"
         if volume_key in form_data and cost_key in form_data:
             try:
                 volume = float(form_data.get(volume_key, 0.0))
@@ -186,17 +177,17 @@ async def create_operation(
                 if volume < 0 or cost < 0:
                     raise ValueError("Объём и стоимость должны быть неотрицательными")
                 if volume > 0 or cost > 0:
-                    operation_pollutant = OperationPollutant(
+                    operation_item = OperationItem(
                         operation_id=operation.id,
-                        pollutant_id=pollutant.id,
+                        item_id=item.id,
                         volume=volume,
                         cost=cost
                     )
-                    db.add(operation_pollutant)
+                    db.add(operation_item)
             except ValueError as e:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Ошибка для загрязнителя {pollutant.name}: {str(e)}"
+                    detail=f"Ошибка для элемента {item.name}: {str(e)}"
                 )
     
     db.commit()
@@ -210,16 +201,16 @@ async def edit_form(operation_id: int, request: Request, db: Session = Depends(g
     ships = db.query(Ship).all()
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
-    pollutants = db.query(Pollutant).all()
-    operation_pollutants = {op.pollutant_id: op for op in operation.pollutants} if operation.pollutants else {}
+    items = db.query(Item).all()
+    item_assocs = {op.item_id: op for op in operation.items}
     return templates.TemplateResponse("edit.html", {
         "request": request,
         "operation": operation,
         "ships": ships,
         "ports": ports,
         "contractors": contractors,
-        "pollutants": pollutants,
-        "operation_pollutants": operation_pollutants
+        "items": items,
+        "item_assocs": item_assocs
     })
 
 @router.post("/edit/{operation_id}")
@@ -259,13 +250,13 @@ async def update_operation(
     else:
         operation.has_documents = bool(operation.document_path)
 
-    db.query(OperationPollutant).filter(OperationPollutant.operation_id == operation_id).delete()
+    db.query(OperationItem).filter(OperationItem.operation_id == operation_id).delete()
 
     form_data = await request.form()
-    pollutants = db.query(Pollutant).all()
-    for pollutant in pollutants:
-        volume_key = f"volume_{pollutant.id}"
-        cost_key = f"cost_{pollutant.id}"
+    items = db.query(Item).all()
+    for item in items:
+        volume_key = f"volume_{item.id}"
+        cost_key = f"cost_{item.id}"
         if volume_key in form_data and cost_key in form_data:
             try:
                 volume = float(form_data.get(volume_key, 0.0))
@@ -273,17 +264,17 @@ async def update_operation(
                 if volume < 0 or cost < 0:
                     raise ValueError("Объём и стоимость должны быть неотрицательными")
                 if volume > 0 or cost > 0:
-                    operation_pollutant = OperationPollutant(
+                    operation_item = OperationItem(
                         operation_id=operation.id,
-                        pollutant_id=pollutant.id,
+                        item_id=item.id,
                         volume=volume,
                         cost=cost
                     )
-                    db.add(operation_pollutant)
+                    db.add(operation_item)
             except ValueError as e:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Ошибка для загрязнителя {pollutant.name}: {str(e)}"
+                    detail=f"Ошибка для элемента {item.name}: {str(e)}"
                 )
     
     db.commit()
