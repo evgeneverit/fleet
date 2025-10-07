@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, File, UploadFile, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -6,8 +6,7 @@ from sqlalchemy import func
 from models.database import get_db
 from models.schemas import Operation, Ship, Port, Contractor, Item, OperationItem
 from datetime import datetime, date
-import os
-import shutil
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -123,12 +122,13 @@ async def create_form(request: Request, db: Session = Depends(get_db)):
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
     items = db.query(Item).all()
+    items_dict = [{"id": item.id, "name": item.name} for item in items]
     return templates.TemplateResponse("create.html", {
         "request": request,
         "ships": ships,
         "ports": ports,
         "contractors": contractors,
-        "items": items
+        "items": items_dict
     })
 
 @router.post("/create")
@@ -137,7 +137,7 @@ async def create_operation(
     port_id: int = Form(...),
     contractor_id: int = Form(...),
     date: date = Form(...),
-    document: UploadFile = File(None),
+    has_documents: bool = Form(False),
     request: Request = None,
     db: Session = Depends(get_db)
 ):
@@ -153,17 +153,10 @@ async def create_operation(
         port_id=port_id,
         contractor_id=contractor_id,
         date=date,
-        has_documents=bool(document)
+        has_documents=has_documents
     )
     db.add(operation)
     db.flush()
-
-    if document:
-        os.makedirs("uploads", exist_ok=True)
-        file_path = f"uploads/op_{operation.id}_{document.filename}"
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(document.file, buffer)
-        operation.document_path = file_path
 
     form_data = await request.form()
     items = db.query(Item).all()
@@ -202,14 +195,18 @@ async def edit_form(operation_id: int, request: Request, db: Session = Depends(g
     ports = db.query(Port).all()
     contractors = db.query(Contractor).all()
     items = db.query(Item).all()
-    item_assocs = {op.item_id: op for op in operation.items}
+    items_dict = [{"id": item.id, "name": item.name} for item in items]
+    item_assocs = [
+        {"item_id": op.item_id, "name": op.item.name, "volume": op.volume, "cost": op.cost}
+        for op in operation.items
+    ]
     return templates.TemplateResponse("edit.html", {
         "request": request,
         "operation": operation,
         "ships": ships,
         "ports": ports,
         "contractors": contractors,
-        "items": items,
+        "items": items_dict,
         "item_assocs": item_assocs
     })
 
@@ -221,7 +218,7 @@ async def update_operation(
     port_id: int = Form(...),
     contractor_id: int = Form(...),
     date: date = Form(...),
-    document: UploadFile = File(None),
+    has_documents: bool = Form(False),
     db: Session = Depends(get_db)
 ):
     operation = db.query(Operation).filter(Operation.id == operation_id).first()
@@ -239,16 +236,7 @@ async def update_operation(
     operation.port_id = port_id
     operation.contractor_id = contractor_id
     operation.date = date
-    
-    if document:
-        os.makedirs("uploads", exist_ok=True)
-        file_path = f"uploads/op_{operation.id}_{document.filename}"
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(document.file, buffer)
-        operation.document_path = file_path
-        operation.has_documents = True
-    else:
-        operation.has_documents = bool(operation.document_path)
+    operation.has_documents = has_documents
 
     db.query(OperationItem).filter(OperationItem.operation_id == operation_id).delete()
 
@@ -289,9 +277,3 @@ async def delete_operation(operation_id: int, db: Session = Depends(get_db)):
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
-@router.get("/download/{operation_id}")
-async def download_document(operation_id: int, db: Session = Depends(get_db)):
-    operation = db.query(Operation).filter(Operation.id == operation_id).first()
-    if not operation or not operation.document_path:
-        raise HTTPException(status_code=404, detail="Документ не найден")
-    return FileResponse(operation.document_path, filename=os.path.basename(operation.document_path))

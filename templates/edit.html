@@ -101,12 +101,9 @@
                 </tbody>
             </table>
 
-            <div class="mb-3">
-                <label for="document" class="form-label">Документ</label>
-                <input type="file" class="form-control" id="document" name="document">
-                {% if operation.document_path %}
-                <p>Текущий документ: <a href="/download/{{ operation.id }}" target="_blank">Скачать</a></p>
-                {% endif %}
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="has_documents" name="has_documents" {% if operation.has_documents %}checked{% endif %}>
+                <label for="has_documents" class="form-check-label">Есть документы</label>
             </div>
 
             <button type="submit" class="btn btn-primary">Сохранить</button>

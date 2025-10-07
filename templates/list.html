@@ -95,13 +95,7 @@
                     <td>{{ operation.port.name }}</td>
                     <td>{{ operation.contractor.name }}</td>
                     <td>{{ operation.date }}</td>
-                    <td>
-                        {% if operation.document_path %}
-                        <a href="/download/{{ operation.id }}" target="_blank">Скачать</a>
-                        {% else %}
-                        Нет
-                        {% endif %}
-                    </td>
+                    <td>{{ "Да" if operation.has_documents else "Нет" }}</td>
                     <td>{{ total_costs[operation.id] | float | round(2) }}</td>
                     <td>
                         <a href="/edit/{{ operation.id }}" class="btn btn-sm btn-primary">Редактировать</a>
