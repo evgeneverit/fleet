@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Редактирование операции</title>
+    <title>Редактирование операции #{{ operation.id }}</title>
     <link href="/static/css/styles.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
@@ -15,8 +15,8 @@
             <a class="nav-link" href="/">Вернуться к списку</a>
         </nav>
 
-        <form method="post" enctype="multipart/form-data">
-            <div class="row g-3">
+        <form method="post" id="operationForm">
+            <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <label for="ship_id" class="form-label">Судно</label>
                     <select class="form-select" id="ship_id" name="ship_id" required>
@@ -47,69 +47,173 @@
                 </div>
             </div>
 
-            <h3 class="mt-4">Элементы операции</h3>
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th>Тип</th>
-                        <th>Объём</th>
-                        <th>Стоимость</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr>
-                        <td>
-                            {% if item.name == 'Питьевая вода' %}
-                            <i class="fas fa-water"></i> {{ item.name }}
-                            {% elif item.name == 'Хозфекальные воды' %}
-                            <i class="fas fa-tint-slash"></i> {{ item.name }}
-                            {% elif item.name == 'Шлам' %}
-                            <i class="fas fa-industry"></i> {{ item.name }}
-                            {% elif item.name == 'Бытовой мусор' %}
-                            <i class="fas fa-trash"></i> {{ item.name }}
-                            {% elif item.name == 'Пластик' %}
-                            <i class="fas fa-recycle"></i> {{ item.name }}
-                            {% elif item.name == 'Пищевые отходы' %}
-                            <i class="fas fa-utensils"></i> {{ item.name }}
-                            {% elif item.name == 'Кулинарный жир' %}
-                            <i class="fas fa-oil-can"></i> {{ item.name }}
-                            {% elif item.name == 'Эксплуатационные отходы' %}
-                            <i class="fas fa-tools"></i> {{ item.name }}
-                            {% elif item.name == 'Электронные отходы' %}
-                            <i class="fas fa-bolt"></i> {{ item.name }}
-                            {% elif item.name == 'Агентское вознаграждение' %}
-                            <i class="fas fa-handshake"></i> {{ item.name }}
-                            {% elif item.name == 'Опломбировка' %}
-                            <i class="fas fa-lock"></i> {{ item.name }}
-                            {% elif item.name == 'Ходовое время' %}
-                            <i class="fas fa-clock"></i> {{ item.name }}
-                            {% else %}
-                            <i class="fas fa-question"></i> {{ item.name }}
-                            {% endif %}
-                        </td>
-                        <td>
-                            <input type="number" step="0.01" min="0" class="form-control" name="volume_{{ item.id }}"
-                                   value="{% if item.id in item_assocs %}{{ item_assocs[item.id].volume }}{% else %}0{% endif %}">
-                        </td>
-                        <td>
-                            <input type="number" step="0.01" min="0" class="form-control" name="cost_{{ item.id }}"
-                                   value="{% if item.id in item_assocs %}{{ item_assocs[item.id].cost }}{% else %}0{% endif %}">
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="has_documents" name="has_documents" {% if operation.has_documents %}checked{% endif %}>
                 <label for="has_documents" class="form-check-label">Есть документы</label>
             </div>
 
-            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <!-- Кнопка добавления услуги -->
+            <button type="button" class="btn btn-outline-success mb-3" data-bs-toggle="modal" data-bs-target="#addItemModal">
+                <i class="fas fa-plus"></i> Добавить услугу
+            </button>
+
+            <!-- Таблица выбранных услуг -->
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered" id="itemsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px"></th>
+                            <th>Услуга</th>
+                            <th style="width: 120px">Объём</th>
+                            <th style="width: 140px">Стоимость</th>
+                            <th style="width: 50px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Сюда будут добавлены строки при загрузке и через JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-3">Сохранить</button>
         </form>
     </div>
 
+    <!-- Модальное окно выбора услуги -->
+    <div class="modal fade" id="addItemModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Выберите услугу</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row row-cols-2 row-cols-md-3 g-3">
+                        {% for item in items %}
+                        <div class="col">
+                            <button type="button" class="btn btn-outline-primary w-100 text-start p-3 item-btn"
+                                    data-item-id="{{ item.id }}"
+                                    data-item-name="{{ item.name }}"
+                                    onclick="addItemToTable({{ item.id }}, '{{ item.name }}')">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div style="font-size: 1.5rem">
+                                        {% if item.name == 'Питьевая вода' %}
+                                        <i class="fas fa-water"></i>
+                                        {% elif item.name == 'Хозфекальные воды' %}
+                                        <i class="fas fa-tint-slash"></i>
+                                        {% elif item.name == 'Шлам' %}
+                                        <i class="fas fa-industry"></i>
+                                        {% elif item.name == 'Бытовой мусор' %}
+                                        <i class="fas fa-trash"></i>
+                                        {% elif item.name == 'Пластик' %}
+                                        <i class="fas fa-recycle"></i>
+                                        {% elif item.name == 'Пищевые отходы' %}
+                                        <i class="fas fa-utensils"></i>
+                                        {% elif item.name == 'Кулинарный жир' %}
+                                        <i class="fas fa-oil-can"></i>
+                                        {% elif item.name == 'Эксплуатационные отходы' %}
+                                        <i class="fas fa-tools"></i>
+                                        {% elif item.name == 'Электронные отходы' %}
+                                        <i class="fas fa-bolt"></i>
+                                        {% elif item.name == 'Агентское вознаграждение' %}
+                                        <i class="fas fa-handshake"></i>
+                                        {% elif item.name == 'Опломбировка' %}
+                                        <i class="fas fa-lock"></i>
+                                        {% elif item.name == 'Ходовое время' %}
+                                        <i class="fas fa-clock"></i>
+                                        {% else %}
+                                        <i class="fas fa-question"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <strong>{{ item.name }}</strong>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const addedItems = new Set();
+
+        // Загружаем уже существующие услуги при открытии
+        window.addEventListener('DOMContentLoaded', function() {
+            const existingItems = {{ item_assocs | tojson }};
+            existingItems.forEach(item => {
+                addItemToTable(item.item_id, item.name, item.volume, item.cost);
+            });
+        });
+
+        function addItemToTable(itemId, itemName, volume = 0, cost = 0) {
+            if (addedItems.has(itemId)) {
+                alert('Эта услуга уже добавлена');
+                return;
+            }
+
+            addedItems.add(itemId);
+
+            const tbody = document.querySelector('#itemsTable tbody');
+            const row = document.createElement('tr');
+            row.dataset.itemId = itemId;
+
+            // Иконка
+            const iconTd = document.createElement('td');
+            const icon = document.querySelector(`[data-item-id="${itemId}"] i`).cloneNode(true);
+            iconTd.appendChild(icon);
+            iconTd.classList.add('text-center');
+
+            // Название
+            const nameTd = document.createElement('td');
+            nameTd.textContent = itemName;
+
+            // Объём
+            const volumeTd = document.createElement('td');
+            const volumeInput = document.createElement('input');
+            volumeInput.type = 'number';
+            volumeInput.step = '0.01';
+            volumeInput.min = '0';
+            volumeInput.className = 'form-control form-control-sm';
+            volumeInput.name = `volume_${itemId}`;
+            volumeInput.value = volume;
+            volumeTd.appendChild(volumeInput);
+
+            // Стоимость
+            const costTd = document.createElement('td');
+            const costInput = document.createElement('input');
+            costInput.type = 'number';
+            costInput.step = '0.01';
+            costInput.min = '0';
+            costInput.className = 'form-control form-control-sm';
+            costInput.name = `cost_${itemId}`;
+            costInput.value = cost;
+            costTd.appendChild(costInput);
+
+            // Удалить
+            const deleteTd = document.createElement('td');
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'btn btn-sm btn-danger';
+            deleteBtn.innerHTML = '×';
+            deleteBtn.onclick = function() {
+                tbody.removeChild(row);
+                addedItems.delete(itemId);
+            };
+            deleteTd.appendChild(deleteBtn);
+
+            row.append(iconTd, nameTd, volumeTd, costTd, deleteTd);
+            tbody.appendChild(row);
+
+            // Закрыть модалку (только если вызвано из кнопки)
+            const modalElement = document.getElementById('addItemModal');
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) modal.hide();
+        }
+    </script>
 </body>
 </html>
