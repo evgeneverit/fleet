@@ -196,6 +196,7 @@ async def edit_form(operation_id: int, request: Request, db: Session = Depends(g
     contractors = db.query(Contractor).all()
     items = db.query(Item).all()
     items_dict = [{"id": item.id, "name": item.name} for item in items]
+    today = date.today().isoformat()  # Формат YYYY-MM-DD
     item_assocs = [
         {"item_id": op.item_id, "name": op.item.name, "volume": op.volume, "cost": op.cost}
         for op in operation.items
@@ -207,6 +208,7 @@ async def edit_form(operation_id: int, request: Request, db: Session = Depends(g
         "ports": ports,
         "contractors": contractors,
         "items": items_dict,
+        "today": today,
         "item_assocs": item_assocs
     })
 
