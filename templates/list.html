@@ -7,13 +7,14 @@
     <link href="/static/css/styles.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container mt-4">
         <h1>Управление обработками флота</h1>
         <nav class="nav mb-3">
-            <a class="nav-link" href="/create">Создать новую запись</a>           
-            <a class="nav-link" href="/analytics">Аналитика</a>
+            <a class="nav-link" href="/create">Создать новую запись</a>
+            <!-- <a class="nav-link" href="/analytics">Аналитика</a> -->
         </nav>
 
         <!-- Кнопка для показа/скрытия фильтров -->
@@ -98,9 +99,14 @@
                     <td>{{ total_costs[operation.id] | float | round(2) }}</td>
                     <td>
                         <a href="/edit/{{ operation.id }}" class="btn btn-sm btn-primary">Редактировать</a>
-                        <form action="/delete/{{ operation.id }}" method="post" style="display:inline;">
-                            <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
-                        </form>
+                        
+                        <!-- КНОПКА УДАЛЕНИЯ С ПОДТВЕРЖДЕНИЕМ -->
+                        <button type="button" class="btn btn-sm btn-danger"
+                                data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                onclick="prepareDelete({{ operation.id }})">
+                            <i class="fas fa-trash-alt"></i> Удалить
+                        </button>
+
                         <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#operationModal" onclick="fetchOperation({{ operation.id }})">Детали</button>
                     </td>
                 </tr>
@@ -144,8 +150,31 @@
                 </div>
             </div>
         </div>
+
+        <!-- Модальное окно подтверждения удаления -->
+        <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="deleteModalLabel">Подтверждение удаления</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        Вы уверены, что хотите удалить операцию <strong id="delete-operation-id"></strong>?
+                        <br><small>Это действие нельзя отменить.</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <form id="deleteForm" method="post" style="display:inline;">
+                            <button type="submit" class="btn btn-danger">Удалить</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <!-- Скрипты -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -168,6 +197,14 @@
             });
         });
 
+        // Подготовка формы удаления
+        window.prepareDelete = function(operationId) {
+            document.getElementById('delete-operation-id').textContent = '#' + operationId;
+            const form = document.getElementById('deleteForm');
+            form.action = `/delete/${operationId}`;
+        };
+
+        // Получение деталей операции
         async function fetchOperation(id) {
             const response = await fetch(`/operation/${id}`);
             const data = await response.json();
@@ -187,6 +224,7 @@
             });
         }
 
+        // Сброс фильтров
         function resetFilters() {
             const form = document.getElementById('filterForm');
             $('#ship_ids').val(null).trigger('change');
